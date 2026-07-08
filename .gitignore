@@ -19,6 +19,9 @@ __pycache__/
 *.log
 install_tw_stock_ai_env.log
 
+# External repositories cloned locally
+external_repos/
+
 # Generated outputs
 reports/
 output/
