@@ -1,0 +1,33 @@
+# Python virtual environments
+.venv/
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Secrets / environment files
+.env
+.env.*
+*.key
+*.token
+
+# Logs
+*.log
+install_tw_stock_ai_env.log
+
+# Generated outputs
+reports/
+output/
+outputs/
+artifacts/
+*.tmp
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
