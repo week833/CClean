@@ -1,12 +1,14 @@
 # 外部股票分析 GitHub 來源清單
 
-本檔案紀錄可供台股 / 股票分析 / 量化研究 / 預測模型參考的外部 GitHub repository。
+本檔案紀錄可供台股 / 股票分析 / 量化研究 / 回測 / 預測模型 / 投組風控參考的外部 GitHub repository。
 
 > 注意：這裡只保存來源清單與下載指令，沒有把外部專案完整原始碼直接複製進本 repo。使用前請自行確認各專案的授權條款、維護狀態、資料限制與相依套件版本。
 
-## 已加入來源
+## 已加入來源總覽
 
-### A. 台股與股票資料 / 既有參考來源
+目前共整理 **36 個** 股票分析相關 GitHub 來源，包含前面已推薦與後續補充推薦的全部清單。
+
+## A. 台股與股票資料 / 既有參考來源
 
 | 類別 | Repository | Default branch | Clone URL | 用途建議 |
 |---|---|---:|---|---|
@@ -17,16 +19,31 @@
 | 台股資料抓取 | `mlouielu/twstock` | `dev` | `https://github.com/mlouielu/twstock.git` | 台灣股市股票價格擷取工具，可作為台股資料備援。 |
 | Python 股票教學 | `victorgau/PyConTW2018Tutorial` | `master` | `https://github.com/victorgau/PyConTW2018Tutorial.git` | 可參考 Python 金融資料分析與教學範例。 |
 
-### B. AI / ML / 量化研究與預測框架
+## B. 金融資料 / 市場研究平台
+
+| 類別 | Repository | Default branch | Clone URL | 用途建議 |
+|---|---|---:|---|---|
+| Yahoo Finance 資料來源 | `ranaroussi/yfinance` | `main` | `https://github.com/ranaroussi/yfinance.git` | 可作為台股 `.TW` / `.TWO` 價量資料與國際市場資料備援。 |
+| 金融資料 / 研究平台 | `OpenBB-finance/OpenBB` | `develop` | `https://github.com/OpenBB-finance/OpenBB.git` | 可參考金融資料整合、研究終端、API 與 agent 化金融分析架構。 |
+
+## C. AI / ML / 時間序列預測框架
 
 | 類別 | Repository | Default branch | Clone URL | 用途建議 |
 |---|---|---:|---|---|
 | AI 量化研究平台 | `microsoft/qlib` | `main` | `https://github.com/microsoft/qlib.git` | 可參考資料處理、因子建模、模型訓練、回測、投組建構與 AI 量化研究流程。 |
 | 強化學習交易框架 | `AI4Finance-Foundation/FinRL` | `master` | `https://github.com/AI4Finance-Foundation/FinRL.git` | 可參考 DRL 交易代理、交易環境、持倉決策與模型訓練架構。 |
-| 金融資料 / 研究平台 | `OpenBB-finance/OpenBB` | `develop` | `https://github.com/OpenBB-finance/OpenBB.git` | 可參考金融資料整合、研究終端、API 與 agent 化金融分析架構。 |
+| 時間序列預測 | `unit8co/darts` | `master` | `https://github.com/unit8co/darts.git` | 可參考統計模型、機器學習、深度學習、多變量與 probabilistic forecasting。 |
+| ML 時間序列預測 | `Nixtla/mlforecast` | `main` | `https://github.com/Nixtla/mlforecast.git` | 適合用 LightGBM / XGBoost / sklearn 做 lag、rolling、date features 與 exogenous variables。 |
+| 深度學習 forecasting | `Nixtla/neuralforecast` | `main` | `https://github.com/Nixtla/neuralforecast.git` | 可參考 N-BEATS、NHITS、TFT、DeepAR 類模型與 neural forecasting 架構。 |
+| 統計 / 計量 forecasting | `Nixtla/statsforecast` | `main` | `https://github.com/Nixtla/statsforecast.git` | 可作為 AutoARIMA、ETS、Theta、MSTL 等 baseline forecasting 模型。 |
+| Gradient Boosting | `lightgbm-org/LightGBM` | `master` | `https://github.com/lightgbm-org/LightGBM.git` | 適合台股隔日漲跌、報酬率、成交量與排名模型。 |
+| Gradient Boosting | `dmlc/xgboost` | `master` | `https://github.com/dmlc/xgboost.git` | 適合 tabular data 預測，可與 LightGBM / CatBoost 做 ensemble。 |
+| Gradient Boosting / 類別特徵 | `catboost/catboost` | `master` | `https://github.com/catboost/catboost.git` | 適合產業、族群、交易所、題材標籤等類別特徵。 |
+| 超參數最佳化 | `optuna/optuna` | `master` | `https://github.com/optuna/optuna.git` | 可自動調整 LightGBM / XGBoost / CatBoost / neural model 的參數。 |
+| 模型解釋 | `shap/shap` | `master` | `https://github.com/shap/shap.git` | 可解釋模型為何推薦某檔股票、哪些因子貢獻最大。 |
 | 加密貨幣交易 bot / ML 參考 | `freqtrade/freqtrade` | `develop` | `https://github.com/freqtrade/freqtrade.git` | 雖以加密貨幣為主，但可參考策略最佳化、回測、風控、FreqAI 與交易系統架構。 |
 
-### C. 回測引擎 / 策略測試
+## D. 回測引擎 / 策略測試
 
 | 類別 | Repository | Default branch | Clone URL | 用途建議 |
 |---|---|---:|---|---|
@@ -37,21 +54,29 @@
 | Zipline 維護版 | `stefan-jansen/zipline-reloaded` | `main` | `https://github.com/stefan-jansen/zipline-reloaded.git` | 可參考事件驅動式回測流程、performance DataFrame 與歷史資料匯入。 |
 | 經典 Python 回測框架 | `mementum/backtrader` | `master` | `https://github.com/mementum/backtrader.git` | 可參考策略、broker、indicator、analyzer 架構；注意 GPL-3.0 授權相容性。 |
 
-### D. 技術指標 / 績效報告 / 投組最佳化
+## E. 技術指標 / 因子分析 / 績效報告 / 投組最佳化
 
 | 類別 | Repository | Default branch | Clone URL | 用途建議 |
 |---|---|---:|---|---|
-| Yahoo Finance 資料來源 | `ranaroussi/yfinance` | `main` | `https://github.com/ranaroussi/yfinance.git` | 可作為台股 `.TW` / `.TWO` 價量資料與國際市場資料備援。 |
+| 技術指標 / K 線型態 | `TA-Lib/ta-lib-python` | `master` | `https://github.com/TA-Lib/ta-lib-python.git` | 可補強 150+ 技術指標與 candlestick pattern recognition。 |
 | 技術指標 / 特徵工程 | `bukosabino/ta` | `master` | `https://github.com/bukosabino/ta.git` | 可直接增加 momentum、trend、volatility、volume 等技術指標特徵。 |
+| Alpha 因子分析 | `stefan-jansen/alphalens-reloaded` | `main` | `https://github.com/stefan-jansen/alphalens-reloaded.git` | 可檢驗選股分數、技術因子、量價因子是否真的有預測力。 |
 | 績效分析 / 報表 | `ranaroussi/quantstats` | `main` | `https://github.com/ranaroussi/quantstats.git` | 可參考勝率、Sharpe、最大回撤、績效圖表與 HTML tear sheet。 |
+| 績效 / 風險分析 | `stefan-jansen/pyfolio-reloaded` | `main` | `https://github.com/stefan-jansen/pyfolio-reloaded.git` | 可產生策略 tear sheet、風險圖與 out-of-sample 績效分析。 |
+| 風險績效指標 | `stefan-jansen/empyrical-reloaded` | `main` | `https://github.com/stefan-jansen/empyrical-reloaded.git` | 可計算 alpha、beta、VaR、Sharpe、Sortino、最大回撤等指標。 |
+| 金融函式庫 | `pmorissette/ffn` | `master` | `https://github.com/pmorissette/ffn.git` | 輕量金融分析工具，可用於 return、weight、portfolio statistics 等快速計算。 |
+| 投資組合最佳化 | `PyPortfolio/PyPortfolioOpt` | `main` | `https://github.com/PyPortfolio/PyPortfolioOpt.git` | 可將推薦股票清單升級為資金配置比例，支援 Efficient Frontier、Black-Litterman、HRP 等。 |
+| 風險控管 / 投組最佳化 | `dcajasn/Riskfolio-Lib` | `master` | `https://github.com/dcajasn/Riskfolio-Lib.git` | 可參考 CVaR、drawdown risk、risk parity、leverage、turnover 等進階風控。 |
 | 投資組合最佳化 | `skfolio/skfolio` | `main` | `https://github.com/skfolio/skfolio.git` | 可參考資產配置、風險控管、交叉驗證、HRP、Risk Budgeting 與壓力測試。 |
 
 ## 建議整合順序
 
-1. **先補強現有程式**：`yfinance`、`ta`、`quantstats`、`backtesting.py`。
-2. **建立正式回測流程**：`vectorbt`、`bt`、`zipline-reloaded`。
-3. **升級 AI / ML 模型**：`qlib`、`FinRL`、`skfolio`。
-4. **參考大型系統架構**：`Lean`、`OpenBB`、`freqtrade`。
+1. **先補強現有程式**：`yfinance`、`ta`、`TA-Lib`、`quantstats`、`backtesting.py`。
+2. **建立因子檢驗與正式回測流程**：`alphalens-reloaded`、`vectorbt`、`bt`、`zipline-reloaded`。
+3. **升級 ML / forecasting 模型**：`LightGBM`、`XGBoost`、`CatBoost`、`Optuna`、`SHAP`、`mlforecast`。
+4. **研究深度學習 / 量化框架**：`qlib`、`FinRL`、`darts`、`neuralforecast`、`statsforecast`。
+5. **升級投組與風控**：`PyPortfolioOpt`、`Riskfolio-Lib`、`skfolio`、`pyfolio-reloaded`、`empyrical-reloaded`。
+6. **參考大型系統架構**：`Lean`、`OpenBB`、`freqtrade`。
 
 ## 一鍵下載
 
@@ -78,20 +103,36 @@ git clone https://github.com/kevin801221/stock-strategies-only.git external_repo
 git clone https://github.com/sacahan/CasualMarket.git external_repos\CasualMarket
 git clone https://github.com/mlouielu/twstock.git external_repos\twstock
 git clone https://github.com/victorgau/PyConTW2018Tutorial.git external_repos\PyConTW2018Tutorial
+git clone https://github.com/ranaroussi/yfinance.git external_repos\yfinance
+git clone https://github.com/OpenBB-finance/OpenBB.git external_repos\OpenBB
 git clone https://github.com/microsoft/qlib.git external_repos\qlib
 git clone https://github.com/AI4Finance-Foundation/FinRL.git external_repos\FinRL
+git clone https://github.com/unit8co/darts.git external_repos\darts
+git clone https://github.com/Nixtla/mlforecast.git external_repos\mlforecast
+git clone https://github.com/Nixtla/neuralforecast.git external_repos\neuralforecast
+git clone https://github.com/Nixtla/statsforecast.git external_repos\statsforecast
+git clone https://github.com/lightgbm-org/LightGBM.git external_repos\LightGBM
+git clone https://github.com/dmlc/xgboost.git external_repos\xgboost
+git clone https://github.com/catboost/catboost.git external_repos\catboost
+git clone https://github.com/optuna/optuna.git external_repos\optuna
+git clone https://github.com/shap/shap.git external_repos\shap
+git clone https://github.com/freqtrade/freqtrade.git external_repos\freqtrade
 git clone https://github.com/polakowo/vectorbt.git external_repos\vectorbt
 git clone https://github.com/kernc/backtesting.py.git external_repos\backtesting.py
 git clone https://github.com/QuantConnect/Lean.git external_repos\Lean
-git clone https://github.com/OpenBB-finance/OpenBB.git external_repos\OpenBB
-git clone https://github.com/ranaroussi/yfinance.git external_repos\yfinance
-git clone https://github.com/bukosabino/ta.git external_repos\ta
-git clone https://github.com/ranaroussi/quantstats.git external_repos\quantstats
-git clone https://github.com/skfolio/skfolio.git external_repos\skfolio
 git clone https://github.com/pmorissette/bt.git external_repos\bt
 git clone https://github.com/stefan-jansen/zipline-reloaded.git external_repos\zipline-reloaded
 git clone https://github.com/mementum/backtrader.git external_repos\backtrader
-git clone https://github.com/freqtrade/freqtrade.git external_repos\freqtrade
+git clone https://github.com/TA-Lib/ta-lib-python.git external_repos\ta-lib-python
+git clone https://github.com/bukosabino/ta.git external_repos\ta
+git clone https://github.com/stefan-jansen/alphalens-reloaded.git external_repos\alphalens-reloaded
+git clone https://github.com/ranaroussi/quantstats.git external_repos\quantstats
+git clone https://github.com/stefan-jansen/pyfolio-reloaded.git external_repos\pyfolio-reloaded
+git clone https://github.com/stefan-jansen/empyrical-reloaded.git external_repos\empyrical-reloaded
+git clone https://github.com/pmorissette/ffn.git external_repos\ffn
+git clone https://github.com/PyPortfolio/PyPortfolioOpt.git external_repos\PyPortfolioOpt
+git clone https://github.com/dcajasn/Riskfolio-Lib.git external_repos\Riskfolio-Lib
+git clone https://github.com/skfolio/skfolio.git external_repos\skfolio
 ```
 
 ## 大型 repo 注意事項
@@ -102,6 +143,9 @@ git clone https://github.com/freqtrade/freqtrade.git external_repos\freqtrade
 - `polakowo/vectorbt`
 - `QuantConnect/Lean`
 - `freqtrade/freqtrade`
+- `catboost/catboost`
+- `unit8co/darts`
+- `Nixtla/statsforecast`
 - `stefan-jansen/zipline-reloaded`
 
 若只想快速補強現有台股程式，可先下載：
@@ -109,6 +153,8 @@ git clone https://github.com/freqtrade/freqtrade.git external_repos\freqtrade
 ```cmd
 git clone https://github.com/ranaroussi/yfinance.git external_repos\yfinance
 git clone https://github.com/bukosabino/ta.git external_repos\ta
+git clone https://github.com/TA-Lib/ta-lib-python.git external_repos\ta-lib-python
 git clone https://github.com/ranaroussi/quantstats.git external_repos\quantstats
 git clone https://github.com/kernc/backtesting.py.git external_repos\backtesting.py
+git clone https://github.com/stefan-jansen/alphalens-reloaded.git external_repos\alphalens-reloaded
 ```
