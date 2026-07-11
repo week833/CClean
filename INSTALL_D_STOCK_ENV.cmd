@@ -1,8 +1,7 @@
 @echo off
 setlocal EnableExtensions
-chcp 65001 >nul 2>&1
 
-title D:\stock 台股工具完整安裝程式（穩定版）
+title D:\stock Installer
 
 set "LOCAL_PS1=%~dp0scripts\setup\install_d_stock_env.ps1"
 set "ADJACENT_PS1=%~dp0install_d_stock_env.ps1"
@@ -10,34 +9,57 @@ set "TEMP_PS1=%TEMP%\install_d_stock_env_%RANDOM%_%RANDOM%.ps1"
 set "PS_SCRIPT="
 set "PS_ARGS="
 set "EXIT_CODE=1"
+set "FULL_MODE=0"
+
+if /I "%~1"=="/FULL" set "FULL_MODE=1"
+if /I "%~2"=="/FULL" set "FULL_MODE=1"
 
 where powershell.exe >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] 找不到 Windows PowerShell。
-    echo 此安裝程式需要 Windows PowerShell 5.1 或更新版本。
+    echo [ERROR] Windows PowerShell was not found.
     echo.
     pause
     exit /b 1
 )
 
-if exist "%LOCAL_PS1%" set "PS_SCRIPT=%LOCAL_PS1%"
-if not defined PS_SCRIPT if exist "%ADJACENT_PS1%" set "PS_SCRIPT=%ADJACENT_PS1%"
+if /I "%~1"=="/CHECK" goto :check_local
+if /I "%~2"=="/CHECK" goto :check_local
 
-if not defined PS_SCRIPT (
-    echo ============================================================
-    echo  正在下載最新穩定版安裝核心...
-    echo ============================================================
-    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/week833/stock/main/scripts/setup/install_d_stock_env.ps1' -OutFile '%TEMP_PS1%'"
-    if errorlevel 1 goto :download_error
-    set "PS_SCRIPT=%TEMP_PS1%"
+powershell.exe -NoLogo -NoProfile -Command "if ((New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit 0 } else { exit 1 }"
+if errorlevel 1 (
+    echo Requesting administrator privileges...
+    if "%FULL_MODE%"=="1" (
+        powershell.exe -NoLogo -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '/ELEVATED','/FULL' -Verb RunAs"
+    ) else (
+        powershell.exe -NoLogo -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '/ELEVATED' -Verb RunAs"
+    )
+    if errorlevel 1 (
+        echo [ERROR] Administrator elevation failed.
+        echo Right-click this file and select Run as administrator.
+        echo.
+        pause
+    )
+    exit /b
 )
 
-if /I "%~1"=="/FULL" set "PS_ARGS=-Full"
+echo Downloading the latest installer core...
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/week833/stock/main/scripts/setup/install_d_stock_env.ps1' -OutFile '%TEMP_PS1%'"
+if not errorlevel 1 set "PS_SCRIPT=%TEMP_PS1%"
+
+if not defined PS_SCRIPT if exist "%LOCAL_PS1%" set "PS_SCRIPT=%LOCAL_PS1%"
+if not defined PS_SCRIPT if exist "%ADJACENT_PS1%" set "PS_SCRIPT=%ADJACENT_PS1%"
+
+if not defined PS_SCRIPT goto :download_error
+
+call :parse_core
+if errorlevel 1 goto :parse_error
+
+if "%FULL_MODE%"=="1" set "PS_ARGS=-Full"
 
 echo ============================================================
-echo  啟動 D:\stock 安裝程式
+echo Starting D:\stock installer
 echo ============================================================
-echo 安裝核心：%PS_SCRIPT%
+echo Core script: %PS_SCRIPT%
 echo.
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" %PS_ARGS%
@@ -47,21 +69,43 @@ if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
 
 echo.
 if "%EXIT_CODE%"=="0" (
-    echo [OK] 安裝程式執行完成。
+    echo [OK] Installation completed.
 ) else (
-    echo [ERROR] 安裝程式執行失敗，錯誤碼：%EXIT_CODE%
-    echo 請查看：%TEMP%\install_d_stock_env.log
+    echo [ERROR] Installation failed with exit code %EXIT_CODE%.
+    echo Log file: %TEMP%\install_d_stock_env.log
 )
 echo.
-echo 按任意鍵關閉視窗...
+echo Press any key to close...
 pause >nul
 exit /b %EXIT_CODE%
 
+:check_local
+set "PS_SCRIPT=%LOCAL_PS1%"
+if not exist "%PS_SCRIPT%" (
+    echo [ERROR] Local installer core was not found:
+    echo %PS_SCRIPT%
+    exit /b 1
+)
+call :parse_core
+exit /b %ERRORLEVEL%
+
+:parse_core
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile('%PS_SCRIPT%',[ref]$tokens,[ref]$errors) | Out-Null; if($errors.Count -gt 0){$errors | ForEach-Object { Write-Host $_.Message }; exit 1}; exit 0"
+exit /b %ERRORLEVEL%
+
 :download_error
 echo.
-echo [ERROR] 無法下載安裝核心。
-echo 請確認網路可連線至 GitHub，或將 install_d_stock_env.ps1 放在本檔案旁邊。
+echo [ERROR] The installer core could not be downloaded or found locally.
+echo Check access to raw.githubusercontent.com.
 echo.
-echo 按任意鍵關閉視窗...
-pause >nul
+pause
+exit /b 1
+
+:parse_error
+echo.
+echo [ERROR] The PowerShell installer core failed syntax validation.
+echo Log or parser output is shown above.
+if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
+echo.
+pause
 exit /b 1
