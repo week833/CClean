@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$Full
+    [switch]$Full,
+    [switch]$SelfTest
 )
 
 Set-StrictMode -Version 2.0
@@ -18,7 +19,8 @@ $LogFile = Join-Path $env:TEMP 'install_d_stock_env.log'
 
 function Write-Status {
     param(
-        [Parameter(Mandatory = $true)][string]$Message,
+        [AllowEmptyString()]
+        [string]$Message = '',
         [ConsoleColor]$Color = [ConsoleColor]::Gray
     )
 
@@ -26,26 +28,41 @@ function Write-Status {
     $Message | Add-Content -LiteralPath $LogFile -Encoding UTF8
 }
 
-function Invoke-External {
+function Invoke-Native {
     param(
-        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
         [string[]]$Arguments = @()
     )
 
     Write-Status ("> {0} {1}" -f $FilePath, ($Arguments -join ' ')) ([ConsoleColor]::DarkGray)
+
     $output = & $FilePath @Arguments 2>&1
     $exitCode = $LASTEXITCODE
 
     if ($null -ne $output) {
-        $output | ForEach-Object {
-            Write-Host $_
-            $_ | Out-File -LiteralPath $LogFile -Append -Encoding UTF8
+        foreach ($line in $output) {
+            Write-Host $line
+            $line | Out-File -LiteralPath $LogFile -Append -Encoding UTF8
         }
     }
 
     if ($exitCode -ne 0) {
         throw "Command failed with exit code ${exitCode}: $FilePath"
     }
+}
+
+function Invoke-CmdScript {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath
+    )
+
+    if (-not (Test-Path -LiteralPath $ScriptPath)) {
+        throw "Required CMD script was not found: $ScriptPath"
+    }
+
+    Invoke-Native -FilePath $env:ComSpec -Arguments @('/d', '/c', "call `"$ScriptPath`"")
 }
 
 function Test-IsAdministrator {
@@ -76,7 +93,8 @@ function Find-Git {
 
 function Test-SupportedPython {
     param(
-        [Parameter(Mandatory = $true)][string]$PythonPath
+        [Parameter(Mandatory = $true)]
+        [string]$PythonPath
     )
 
     try {
@@ -131,8 +149,10 @@ function Find-Python {
 
 function Install-WithWinget {
     param(
-        [Parameter(Mandatory = $true)][string]$PackageId,
-        [Parameter(Mandatory = $true)][string]$DisplayName
+        [Parameter(Mandatory = $true)]
+        [string]$PackageId,
+        [Parameter(Mandatory = $true)]
+        [string]$DisplayName
     )
 
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
@@ -141,7 +161,7 @@ function Install-WithWinget {
     }
 
     Write-Status "[INSTALL] Installing $DisplayName with winget..." ([ConsoleColor]::Yellow)
-    Invoke-External -FilePath $winget.Source -Arguments @(
+    Invoke-Native -FilePath $winget.Source -Arguments @(
         'install',
         '--id',
         $PackageId,
@@ -155,7 +175,8 @@ function Install-WithWinget {
 
 function Add-UserPathEntries {
     param(
-        [Parameter(Mandatory = $true)][string[]]$Entries
+        [Parameter(Mandatory = $true)]
+        [string[]]$Entries
     )
 
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -185,8 +206,10 @@ function Add-UserPathEntries {
 
 function Ensure-LegacyJunction {
     param(
-        [Parameter(Mandatory = $true)][string]$LinkPath,
-        [Parameter(Mandatory = $true)][string]$TargetPath
+        [Parameter(Mandatory = $true)]
+        [string]$LinkPath,
+        [Parameter(Mandatory = $true)]
+        [string]$TargetPath
     )
 
     $parent = Split-Path -Parent $LinkPath
@@ -196,6 +219,7 @@ function Ensure-LegacyJunction {
 
     if (Test-Path -LiteralPath $LinkPath) {
         $item = Get-Item -LiteralPath $LinkPath -Force
+
         if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             Write-Status "[KEEP] Existing junction: $LinkPath" ([ConsoleColor]::DarkYellow)
             return
@@ -220,6 +244,19 @@ function Ensure-LegacyJunction {
     }
 }
 
+if ($SelfTest) {
+    Write-Status ''
+    Write-Status '[SELFTEST] Empty status messages are accepted.' ([ConsoleColor]::Green)
+
+    $testText = "Command failed with exit code ${LASTEXITCODE}: self-test"
+    if ($testText -notmatch 'exit code') {
+        throw 'Self-test message formatting failed.'
+    }
+
+    Write-Status '[SELFTEST] Runtime helper checks passed.' ([ConsoleColor]::Green)
+    exit 0
+}
+
 try {
     Write-Status '============================================================' ([ConsoleColor]::Cyan)
     Write-Status ' D:\stock Stock Toolkit Installer' ([ConsoleColor]::Cyan)
@@ -240,6 +277,7 @@ try {
 
     Write-Status '[1/8] Checking Git...' ([ConsoleColor]::White)
     $git = Find-Git
+
     if (-not $git) {
         Install-WithWinget -PackageId 'Git.Git' -DisplayName 'Git for Windows'
         $env:Path = "$env:ProgramFiles\Git\cmd;$env:LOCALAPPDATA\Programs\Git\cmd;$env:Path"
@@ -254,6 +292,7 @@ try {
 
     Write-Status '[2/8] Checking Python 3.10 through 3.12...' ([ConsoleColor]::White)
     $python = Find-Python
+
     if (-not $python) {
         Install-WithWinget -PackageId 'Python.Python.3.12' -DisplayName 'Python 3.12'
         $env:Path = "$env:LOCALAPPDATA\Programs\Python\Python312;$env:LOCALAPPDATA\Programs\Python\Python312\Scripts;$env:LOCALAPPDATA\Programs\Python\Launcher;$env:Path"
@@ -277,9 +316,9 @@ try {
             throw "D:\stock is another Git repository. Current origin: $origin"
         }
 
-        Invoke-External -FilePath $git -Arguments @('-C', $InstallRoot, 'fetch', '--prune')
-        Invoke-External -FilePath $git -Arguments @('-C', $InstallRoot, 'checkout', 'main')
-        Invoke-External -FilePath $git -Arguments @('-C', $InstallRoot, 'pull', '--ff-only', 'origin', 'main')
+        Invoke-Native -FilePath $git -Arguments @('-C', $InstallRoot, 'fetch', '--prune')
+        Invoke-Native -FilePath $git -Arguments @('-C', $InstallRoot, 'checkout', 'main')
+        Invoke-Native -FilePath $git -Arguments @('-C', $InstallRoot, 'pull', '--ff-only', 'origin', 'main')
     }
     else {
         if (Test-Path -LiteralPath $InstallRoot) {
@@ -295,7 +334,7 @@ try {
             }
         }
 
-        Invoke-External -FilePath $git -Arguments @('clone', $RepoUrl, $InstallRoot)
+        Invoke-Native -FilePath $git -Arguments @('clone', $RepoUrl, $InstallRoot)
     }
 
     Write-Status '[4/8] Creating or repairing the Python virtual environment...' ([ConsoleColor]::White)
@@ -316,11 +355,11 @@ try {
             Remove-Item -LiteralPath $venvDir -Recurse -Force
         }
 
-        Invoke-External -FilePath $python -Arguments @('-m', 'venv', $venvDir)
+        Invoke-Native -FilePath $python -Arguments @('-m', 'venv', $venvDir)
     }
 
-    Invoke-External -FilePath $venvPython -Arguments @('-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel')
-    Invoke-External -FilePath $venvPython -Arguments @('-m', 'pip', 'install', '-r', (Join-Path $InstallRoot 'requirements.txt'))
+    Invoke-Native -FilePath $venvPython -Arguments @('-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel')
+    Invoke-Native -FilePath $venvPython -Arguments @('-m', 'pip', 'install', '-r', (Join-Path $InstallRoot 'requirements.txt'))
 
     Write-Status '[5/8] Configuring user environment variables and PATH...' ([ConsoleColor]::White)
     $environmentVariables = @{
@@ -355,12 +394,13 @@ try {
 
     $env:STOCK_TOOLKIT_NO_PAUSE = '1'
     $repairScript = Join-Path $InstallRoot 'scripts\compat\repair_legacy_paths.cmd'
+
     if (Test-Path -LiteralPath $repairScript) {
-        Invoke-External -FilePath $repairScript
+        Invoke-CmdScript -ScriptPath $repairScript
     }
 
     Write-Status '[7/8] Verifying the core environment...' ([ConsoleColor]::White)
-    Invoke-External -FilePath $venvPython -Arguments @(
+    Invoke-Native -FilePath $venvPython -Arguments @(
         '-c',
         "import sys, FinMind, twstock, pandas, numpy, requests, yfinance, matplotlib, openpyxl; print(sys.executable); print('D_STOCK_ENV_OK')"
     )
@@ -369,19 +409,15 @@ try {
         Write-Status '[8/8] Downloading all primary and legacy research repositories...' ([ConsoleColor]::White)
 
         $sourceScript = Join-Path $InstallRoot 'scripts\sources\clone_stock_analysis_repos.cmd'
-        if (-not (Test-Path -LiteralPath $sourceScript)) {
-            throw "Source downloader was not found: $sourceScript"
-        }
-
-        Invoke-External -FilePath $sourceScript
+        Invoke-CmdScript -ScriptPath $sourceScript
 
         $legacySourceScript = Join-Path $InstallRoot 'scripts\sources\clone_legacy_compat_repos.cmd'
         if (Test-Path -LiteralPath $legacySourceScript) {
-            Invoke-External -FilePath $legacySourceScript
+            Invoke-CmdScript -ScriptPath $legacySourceScript
         }
 
         if (Test-Path -LiteralPath $repairScript) {
-            Invoke-External -FilePath $repairScript
+            Invoke-CmdScript -ScriptPath $repairScript
         }
     }
     else {
@@ -403,9 +439,10 @@ try {
 }
 catch {
     Remove-Item Env:STOCK_TOOLKIT_NO_PAUSE -ErrorAction SilentlyContinue
+
     Write-Status ''
     Write-Status '[ERROR] Installation failed.' ([ConsoleColor]::Red)
-    Write-Status $_.Exception.Message ([ConsoleColor]::Red)
+    Write-Status ([string]$_.Exception.Message) ([ConsoleColor]::Red)
     ($_ | Format-List * -Force | Out-String) | Add-Content -LiteralPath $LogFile -Encoding UTF8
     Write-Status "Review the log file: $LogFile" ([ConsoleColor]::Yellow)
     exit 1
