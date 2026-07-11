@@ -55,7 +55,13 @@ if %ERRORLEVEL% NEQ 0 goto :error
 
 echo [6/6] 修復舊路徑相容性...
 if exist "%REPO_ROOT%\scripts\compat\repair_legacy_paths.cmd" (
+    set "LOCAL_NO_PAUSE="
+    if not defined STOCK_TOOLKIT_NO_PAUSE (
+        set "STOCK_TOOLKIT_NO_PAUSE=1"
+        set "LOCAL_NO_PAUSE=1"
+    )
     call "%REPO_ROOT%\scripts\compat\repair_legacy_paths.cmd"
+    if defined LOCAL_NO_PAUSE set "STOCK_TOOLKIT_NO_PAUSE="
 )
 
 echo.
