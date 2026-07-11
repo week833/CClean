@@ -1,8 +1,7 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
-title 下載舊版相容股票來源
+title Legacy stock source downloader
 
 set /a FAILED_COUNT=0
 set /a SUCCESS_COUNT=0
@@ -13,27 +12,28 @@ set "EXTERNAL_ROOT=%REPO_ROOT%\external_repos"
 
 where git >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] 找不到 Git，請先安裝 Git for Windows。
+    echo [ERROR] Git was not found. Install Git for Windows first.
     if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
 
 if not exist "%EXTERNAL_ROOT%" mkdir "%EXTERNAL_ROOT%"
 if errorlevel 1 (
-    echo [ERROR] 無法建立外部來源資料夾：%EXTERNAL_ROOT%
+    echo [ERROR] Could not create external source directory: %EXTERNAL_ROOT%
     if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
 
 echo ============================================================
-echo 下載舊版安裝程式曾使用的 GitHub 來源
+echo Legacy compatibility source downloader
 echo ============================================================
-echo 只會寫入：%EXTERNAL_ROOT%
-echo 不會搬移或刪除其他資料夾。
+echo Only small compatibility repositories are included.
+echo The oversized voidful/tw_stocker repository is excluded.
+echo All sources are written only under: %EXTERNAL_ROOT%
+echo Existing folders are not moved or deleted.
 echo.
 
 call :clone_or_pull "01_taiwan_stock_data\twstock" "https://github.com/mlouielu/twstock.git"
-call :clone_or_pull "00_legacy_compat\tw_stocker" "https://github.com/voidful/tw_stocker.git"
 call :clone_or_pull "00_legacy_compat\python-stock-radar-" "https://github.com/william911530-cmyk/python-stock-radar-.git"
 call :clone_or_pull "00_legacy_compat\TW-stock" "https://github.com/k66inthesky/TW-stock.git"
 
@@ -44,7 +44,7 @@ if exist "%REPO_ROOT%\scripts\compat\repair_legacy_paths.cmd" (
 
 echo.
 echo ============================================================
-echo Legacy 來源處理完成：成功 !SUCCESS_COUNT!，失敗 !FAILED_COUNT!
+echo Legacy source processing complete: success !SUCCESS_COUNT!, failed !FAILED_COUNT!
 echo ============================================================
 
 if !FAILED_COUNT! GTR 0 (
@@ -62,7 +62,7 @@ set "TARGET=%EXTERNAL_ROOT%\%RELATIVE_PATH%"
 
 for %%I in ("%TARGET%\..") do if not exist "%%~fI" mkdir "%%~fI"
 if errorlevel 1 (
-    echo [ERROR] 無法建立資料夾：%TARGET%
+    echo [ERROR] Could not create directory: %TARGET%
     set /a FAILED_COUNT+=1
     exit /b 0
 )
@@ -71,20 +71,20 @@ if exist "%TARGET%\.git" (
     echo [UPDATE] %RELATIVE_PATH%
     git -C "%TARGET%" pull --ff-only
     if errorlevel 1 (
-        echo [ERROR] 更新失敗：%TARGET%
+        echo [ERROR] Update failed: %TARGET%
         set /a FAILED_COUNT+=1
     ) else (
         set /a SUCCESS_COUNT+=1
     )
 ) else (
     if exist "%TARGET%" (
-        echo [ERROR] 目標存在但不是 Git repository，未修改：%TARGET%
+        echo [ERROR] Target exists but is not a Git repository. It was not modified: %TARGET%
         set /a FAILED_COUNT+=1
     ) else (
         echo [CLONE] %RELATIVE_PATH%
-        git clone "%URL%" "%TARGET%"
+        git clone --depth 1 "%URL%" "%TARGET%"
         if errorlevel 1 (
-            echo [ERROR] 下載失敗：%URL%
+            echo [ERROR] Clone failed: %URL%
             set /a FAILED_COUNT+=1
         ) else (
             set /a SUCCESS_COUNT+=1
