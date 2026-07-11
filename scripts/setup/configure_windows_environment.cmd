@@ -10,6 +10,7 @@ set "CANONICAL_ROOT=D:\stock"
 set "VENV_DIR=%REPO_ROOT%\.venv"
 set "VENV_PYTHON=%VENV_DIR%\Scripts\python.exe"
 set "LEGACY_ROOT=D:\Downloads\stock"
+set "PS_SCRIPT=%TEMP%\configure_d_stock_env_%RANDOM%_%RANDOM%.ps1"
 
 echo ============================================================
 echo  設定 Windows 台股工具使用環境
@@ -38,6 +39,11 @@ if /I not "%REPO_ROOT%"=="%CANONICAL_ROOT%" (
     )
 )
 
+if not exist "%CANONICAL_ROOT%\requirements.txt" (
+    echo [ERROR] %CANONICAL_ROOT% 不是有效的 stock repository。
+    exit /b 1
+)
+
 rem 舊路徑已刪除時，建立 D:\Downloads\stock 到 D:\stock 的 junction。
 if not exist "D:\Downloads" mkdir "D:\Downloads" >nul 2>&1
 if not exist "%LEGACY_ROOT%" (
@@ -54,32 +60,46 @@ if not exist "%VENV_PYTHON%" (
     exit /b 1
 )
 
-echo [1/3] 設定使用者環境變數...
-setx STOCK_HOME "%CANONICAL_ROOT%" >nul
-setx STOCK_REPO "%CANONICAL_ROOT%" >nul
-setx STOCK_VENV "%CANONICAL_ROOT%\.venv" >nul
-setx STOCK_PYTHON "%CANONICAL_ROOT%\.venv\Scripts\python.exe" >nul
-setx STOCK_EXTERNAL_REPOS "%CANONICAL_ROOT%\external_repos" >nul
-setx PYTHONUTF8 "1" >nul
-setx PYTHONIOENCODING "utf-8" >nul
+echo [1/3] 設定使用者環境變數與 PATH...
+> "%PS_SCRIPT%" echo $ErrorActionPreference = 'Stop'
+>> "%PS_SCRIPT%" echo $root = 'D:\stock'
+>> "%PS_SCRIPT%" echo $vars = @{
+>> "%PS_SCRIPT%" echo   'STOCK_HOME' = $root
+>> "%PS_SCRIPT%" echo   'STOCK_REPO' = $root
+>> "%PS_SCRIPT%" echo   'STOCK_VENV' = "$root\.venv"
+>> "%PS_SCRIPT%" echo   'STOCK_PYTHON' = "$root\.venv\Scripts\python.exe"
+>> "%PS_SCRIPT%" echo   'STOCK_EXTERNAL_REPOS' = "$root\external_repos"
+>> "%PS_SCRIPT%" echo   'PYTHONUTF8' = '1'
+>> "%PS_SCRIPT%" echo   'PYTHONIOENCODING' = 'utf-8'
+>> "%PS_SCRIPT%" echo }
+>> "%PS_SCRIPT%" echo foreach ($name in $vars.Keys) { [Environment]::SetEnvironmentVariable($name, $vars[$name], 'User') }
+>> "%PS_SCRIPT%" echo $add = @($root, "$root\.venv\Scripts", "$root\scripts", "$root\scripts\setup", "$root\scripts\sources", "$root\scripts\compat")
+>> "%PS_SCRIPT%" echo $existing = [Environment]::GetEnvironmentVariable('Path', 'User')
+>> "%PS_SCRIPT%" echo $parts = New-Object 'System.Collections.Generic.List[string]'
+>> "%PS_SCRIPT%" echo if ($existing) { foreach ($entry in $existing.Split(';')) { if ($entry -and $entry.Trim()) { $parts.Add($entry.Trim()) } } }
+>> "%PS_SCRIPT%" echo foreach ($item in $add) {
+>> "%PS_SCRIPT%" echo   $found = $false
+>> "%PS_SCRIPT%" echo   foreach ($entry in $parts) { if ($entry.TrimEnd('\') -ieq $item.TrimEnd('\')) { $found = $true; break } }
+>> "%PS_SCRIPT%" echo   if (-not $found) { $parts.Add($item) }
+>> "%PS_SCRIPT%" echo }
+>> "%PS_SCRIPT%" echo [Environment]::SetEnvironmentVariable('Path', ($parts -join ';'), 'User')
 
-echo [2/3] 將台股工具加入使用者 PATH...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$add=@('%CANONICAL_ROOT%','%CANONICAL_ROOT%\.venv\Scripts','%CANONICAL_ROOT%\scripts','%CANONICAL_ROOT%\scripts\setup','%CANONICAL_ROOT%\scripts\sources','%CANONICAL_ROOT%\scripts\compat');" ^
-  "$p=[Environment]::GetEnvironmentVariable('Path','User');" ^
-  "$parts=@(); if($p){$parts=$p.Split(';') ^| Where-Object { $_ -and $_.Trim() }};" ^
-  "foreach($item in $add){if(-not ($parts ^| Where-Object { $_.TrimEnd('\\') -ieq $item.TrimEnd('\\') })){$parts += $item}};" ^
-  "[Environment]::SetEnvironmentVariable('Path',($parts -join ';'),'User')"
-if %ERRORLEVEL% NEQ 0 (
-    echo [WARN] 使用者 PATH 更新失敗，但目前視窗仍會設定 PATH。
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
+set "PS_RC=%ERRORLEVEL%"
+del "%PS_SCRIPT%" >nul 2>&1
+if not "%PS_RC%"=="0" (
+    echo [ERROR] 使用者環境變數或 PATH 更新失敗。
+    exit /b 1
 )
 
-rem 讓目前執行中的批次檔立即可使用，不必重開視窗。
+echo [2/3] 設定目前批次程序的環境...
 set "STOCK_HOME=%CANONICAL_ROOT%"
 set "STOCK_REPO=%CANONICAL_ROOT%"
 set "STOCK_VENV=%CANONICAL_ROOT%\.venv"
 set "STOCK_PYTHON=%CANONICAL_ROOT%\.venv\Scripts\python.exe"
 set "STOCK_EXTERNAL_REPOS=%CANONICAL_ROOT%\external_repos"
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
 set "PATH=%CANONICAL_ROOT%\.venv\Scripts;%CANONICAL_ROOT%;%CANONICAL_ROOT%\scripts;%PATH%"
 
 echo [3/3] 驗證 Windows 應用程式可呼叫環境...
@@ -97,6 +117,6 @@ echo STOCK_HOME=%CANONICAL_ROOT%
 echo STOCK_PYTHON=%CANONICAL_ROOT%\.venv\Scripts\python.exe
 echo 舊路徑=%LEGACY_ROOT%
 echo.
-echo 新開啟的 CMD、PowerShell、排程器與其他應用程式將讀取新的使用者環境變數。
+echo 新開啟的 CMD、PowerShell、VS Code、排程器與其他應用程式將讀取新的使用者環境變數。
 if not defined STOCK_TOOLKIT_NO_PAUSE pause
 exit /b 0
