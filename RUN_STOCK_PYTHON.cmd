@@ -1,17 +1,19 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableExtensions
 
-set "STOCK_HOME=D:\stock"
-set "PYTHON_EXE=%STOCK_HOME%\.venv\Scripts\python.exe"
+set "STOCK_HOME=%STOCK_HOME%"
+if not defined STOCK_HOME set "STOCK_HOME=D:\stock\GitHub"
+set "STOCK_PYTHON=%STOCK_PYTHON%"
+if not defined STOCK_PYTHON set "STOCK_PYTHON=%STOCK_HOME%\.venv\Scripts\python.exe"
 
-if not exist "%PYTHON_EXE%" (
-    echo [ERROR] 找不到：%PYTHON_EXE%
-    echo 請先執行 INSTALL_D_STOCK_ENV.cmd。
+if not exist "%STOCK_PYTHON%" (
+    echo [ERROR] Python executable was not found:
+    echo %STOCK_PYTHON%
+    echo Run INSTALL_D_STOCK_ENV_FULL.cmd first.
     pause
     exit /b 1
 )
 
 cd /d "%STOCK_HOME%"
-"%PYTHON_EXE%" %*
+"%STOCK_PYTHON%" %*
 exit /b %ERRORLEVEL%
