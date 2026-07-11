@@ -1,15 +1,14 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
-title 股票分析外部來源分類下載工具
+title Stock analysis external source downloader
 
 set /a FAILED_COUNT=0
 set /a SUCCESS_COUNT=0
 
 where git >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] 找不到 Git，請先安裝 Git for Windows。
+    echo [ERROR] Git was not found. Install Git for Windows first.
     if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
@@ -20,16 +19,23 @@ set "EXTERNAL_DIR=%ROOT_DIR%\external_repos"
 
 if not exist "%EXTERNAL_DIR%" mkdir "%EXTERNAL_DIR%"
 if errorlevel 1 (
-    echo [ERROR] 無法建立外部來源資料夾：%EXTERNAL_DIR%
+    echo [ERROR] Could not create external source directory: %EXTERNAL_DIR%
     if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
 
+rem Enable Windows long path support for Git operations.
+git config --global core.longpaths true >nul 2>nul
+
+rem Also enable Windows long paths when administrator rights are available.
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f >nul 2>nul
+
 echo ============================================================
-echo  股票分析 GitHub 來源下載 / 更新工具
+echo Stock analysis GitHub source download and update tool
 echo ============================================================
-echo  所有來源只會寫入：%EXTERNAL_DIR%
-echo  不會搬移或刪除既有舊資料夾。
+echo All sources are written only under: %EXTERNAL_DIR%
+echo Existing real folders are not moved, deleted, or overwritten.
+echo Git long path support is enabled for large repositories.
 echo.
 
 call :clone_or_pull "01_taiwan_stock_data\FinMind" "https://github.com/FinMind/FinMind.git"
@@ -76,8 +82,8 @@ if exist "%ROOT_DIR%\scripts\compat\repair_legacy_paths.cmd" (
 
 echo.
 echo ============================================================
-echo 來源處理完成：成功 !SUCCESS_COUNT!，失敗 !FAILED_COUNT!
-echo 位置：%EXTERNAL_DIR%
+echo Source processing complete: success !SUCCESS_COUNT!, failed !FAILED_COUNT!
+echo Repository root: %EXTERNAL_DIR%
 echo ============================================================
 
 if !FAILED_COUNT! GTR 0 (
@@ -95,7 +101,7 @@ set "TARGET=%EXTERNAL_DIR%\%RELATIVE_PATH%"
 
 for %%I in ("%TARGET%\..") do if not exist "%%~fI" mkdir "%%~fI"
 if errorlevel 1 (
-    echo [ERROR] 無法建立資料夾：%TARGET%
+    echo [ERROR] Could not create directory: %TARGET%
     set /a FAILED_COUNT+=1
     exit /b 0
 )
@@ -104,24 +110,46 @@ echo.
 echo [INFO] %RELATIVE_PATH%
 
 if exist "%TARGET%\.git" (
-    git -C "%TARGET%" pull --ff-only
+    git -C "%TARGET%" config core.longpaths true >nul 2>nul
+
+    rem Repair a clone that completed object transfer but failed checkout.
+    git -c core.longpaths=true -C "%TARGET%" diff --quiet --ignore-submodules HEAD >nul 2>nul
     if errorlevel 1 (
-        echo [ERROR] 更新失敗：%TARGET%
+        echo [REPAIR] Completing interrupted checkout with long path support...
+        git -c core.longpaths=true -C "%TARGET%" reset --hard HEAD
+        if errorlevel 1 (
+            echo [ERROR] Checkout repair failed: %TARGET%
+            set /a FAILED_COUNT+=1
+            exit /b 0
+        )
+    )
+
+    git -c core.longpaths=true -C "%TARGET%" pull --ff-only
+    if errorlevel 1 (
+        echo [ERROR] Update failed: %TARGET%
         set /a FAILED_COUNT+=1
     ) else (
         set /a SUCCESS_COUNT+=1
     )
 ) else (
     if exist "%TARGET%" (
-        echo [ERROR] 目標存在但不是 Git repository，未修改：%TARGET%
+        echo [ERROR] Target exists but is not a Git repository. It was not modified: %TARGET%
         set /a FAILED_COUNT+=1
     ) else (
-        git clone "%URL%" "%TARGET%"
+        rem Clone without checkout first, then enable long paths before checkout.
+        git -c core.longpaths=true clone --no-checkout "%URL%" "%TARGET%"
         if errorlevel 1 (
-            echo [ERROR] 下載失敗：%URL%
+            echo [ERROR] Clone failed: %URL%
             set /a FAILED_COUNT+=1
         ) else (
-            set /a SUCCESS_COUNT+=1
+            git -C "%TARGET%" config core.longpaths true >nul 2>nul
+            git -c core.longpaths=true -C "%TARGET%" checkout -f
+            if errorlevel 1 (
+                echo [ERROR] Checkout failed: %TARGET%
+                set /a FAILED_COUNT+=1
+            ) else (
+                set /a SUCCESS_COUNT+=1
+            )
         )
     )
 )
