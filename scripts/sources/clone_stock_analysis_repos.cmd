@@ -24,10 +24,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem Enable Windows long path support for Git operations.
 git config --global core.longpaths true >nul 2>nul
-
-rem Also enable Windows long paths when administrator rights are available.
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\FileSystem" /v LongPathsEnabled /t REG_DWORD /d 1 /f >nul 2>nul
 
 echo ============================================================
@@ -112,16 +109,22 @@ echo [INFO] %RELATIVE_PATH%
 if exist "%TARGET%\.git" (
     git -C "%TARGET%" config core.longpaths true >nul 2>nul
 
-    rem Repair a clone that completed object transfer but failed checkout.
-    git -c core.longpaths=true -C "%TARGET%" diff --quiet --ignore-submodules HEAD >nul 2>nul
-    if errorlevel 1 (
-        echo [REPAIR] Completing interrupted checkout with long path support...
+    set "CHANGE_COUNT=0"
+    for /f %%C in ('git -c core.longpaths=true -C "%TARGET%" status --porcelain --untracked-files=no 2^>nul ^| find /c /v ""') do set "CHANGE_COUNT=%%C"
+
+    if !CHANGE_COUNT! GTR 100 (
+        echo [REPAIR] Detected an interrupted checkout with !CHANGE_COUNT! missing or changed files.
+        echo [REPAIR] Completing checkout with long path support...
         git -c core.longpaths=true -C "%TARGET%" reset --hard HEAD
         if errorlevel 1 (
             echo [ERROR] Checkout repair failed: %TARGET%
             set /a FAILED_COUNT+=1
             exit /b 0
         )
+    ) else if !CHANGE_COUNT! GTR 0 (
+        echo [ERROR] Local tracked changes were detected. Repository was not modified: %TARGET%
+        set /a FAILED_COUNT+=1
+        exit /b 0
     )
 
     git -c core.longpaths=true -C "%TARGET%" pull --ff-only
@@ -136,7 +139,6 @@ if exist "%TARGET%\.git" (
         echo [ERROR] Target exists but is not a Git repository. It was not modified: %TARGET%
         set /a FAILED_COUNT+=1
     ) else (
-        rem Clone without checkout first, then enable long paths before checkout.
         git -c core.longpaths=true clone --no-checkout "%URL%" "%TARGET%"
         if errorlevel 1 (
             echo [ERROR] Clone failed: %URL%
