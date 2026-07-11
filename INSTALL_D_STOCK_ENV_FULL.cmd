@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-title D:\stock Full Installer
+title D:\stock\GitHub Full Installer
 
 set "LOCAL_PS1=%~dp0scripts\setup\install_d_stock_env.ps1"
 set "ADJACENT_PS1=%~dp0install_d_stock_env.ps1"
@@ -12,7 +12,6 @@ set "EXIT_CODE=1"
 where powershell.exe >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Windows PowerShell was not found.
-    echo.
     pause
     exit /b 1
 )
@@ -26,32 +25,34 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo [ERROR] Administrator elevation failed.
         echo Right-click this file and select Run as administrator.
-        echo.
         pause
     )
     exit /b
 )
 
 echo ============================================================
-echo D:\stock Full Installer
+echo D:\stock\GitHub Full Installer - Safe Mode
 echo ============================================================
-echo This mode installs the core environment and downloads all
-echo primary, large, and legacy research repositories.
+echo The toolkit will be installed only under D:\stock\GitHub.
+echo Existing programs directly under D:\stock will not be moved,
+echo deleted, renamed, or overwritten.
+echo.
+echo This mode downloads all primary, large, and legacy research
+echo repositories after the Python environment is configured.
 echo.
 
-echo Downloading the latest installer core...
+echo Downloading the latest safe installer core...
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/week833/stock/main/scripts/setup/install_d_stock_env.ps1' -OutFile '%TEMP_PS1%'"
 if not errorlevel 1 set "PS_SCRIPT=%TEMP_PS1%"
 
 if not defined PS_SCRIPT if exist "%LOCAL_PS1%" set "PS_SCRIPT=%LOCAL_PS1%"
 if not defined PS_SCRIPT if exist "%ADJACENT_PS1%" set "PS_SCRIPT=%ADJACENT_PS1%"
-
 if not defined PS_SCRIPT goto :download_error
 
 call :parse_core
 if errorlevel 1 goto :parse_error
 
-echo Starting full installation...
+echo Starting full safe installation...
 echo Core script: %PS_SCRIPT%
 echo.
 
@@ -63,12 +64,15 @@ if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
 echo.
 if "%EXIT_CODE%"=="0" (
     echo [OK] Full installation and all repository downloads completed.
-    echo Install root: D:\stock
-    echo Python: D:\stock\.venv\Scripts\python.exe
-    echo Repositories: D:\stock\external_repos
+    echo Install root: D:\stock\GitHub
+    echo Python: D:\stock\GitHub\.venv\Scripts\python.exe
+    echo Repositories: D:\stock\GitHub\external_repos
+    echo Existing programs under D:\stock were preserved.
 ) else (
     echo [ERROR] Full installation failed with exit code %EXIT_CODE%.
+    echo No unrelated files should have been moved or deleted.
     echo Log file: %TEMP%\install_d_stock_env.log
+    echo If a previous installer moved files, run RECOVER_MOVED_STOCK_PROGRAMS.cmd.
 )
 echo.
 echo Press any key to close...
@@ -90,18 +94,13 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$tokens=$nul
 exit /b %ERRORLEVEL%
 
 :download_error
-echo.
 echo [ERROR] The installer core could not be downloaded or found locally.
 echo Check access to raw.githubusercontent.com.
-echo.
 pause
 exit /b 1
 
 :parse_error
-echo.
 echo [ERROR] The PowerShell installer core failed syntax validation.
-echo Parser output is shown above.
 if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
-echo.
 pause
 exit /b 1
