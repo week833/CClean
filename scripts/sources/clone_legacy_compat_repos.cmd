@@ -11,7 +11,7 @@ set "EXTERNAL_ROOT=%REPO_ROOT%\external_repos"
 where git >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] 找不到 Git，請先安裝 Git for Windows。
-    pause
+    if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
 
@@ -41,6 +41,7 @@ if exist "%TARGET%\.git" (
     echo [UPDATE] %RELATIVE_PATH%
     pushd "%TARGET%"
     git pull --ff-only
+    if !ERRORLEVEL! NEQ 0 echo [WARN] 更新失敗：%TARGET%
     popd
 ) else (
     if exist "%TARGET%" (
@@ -48,6 +49,7 @@ if exist "%TARGET%\.git" (
     ) else (
         echo [CLONE] %RELATIVE_PATH%
         git clone "%URL%" "%TARGET%"
+        if !ERRORLEVEL! NEQ 0 echo [ERROR] 下載失敗：%URL%
     )
 )
 exit /b 0
