@@ -41,7 +41,7 @@ echo   4. 建立 D:\stock\.venv
 echo   5. 安裝 requirements.txt
 echo   6. 設定 Windows PATH 與 STOCK_* 環境變數
 echo   7. 建立 D:\Downloads\stock 舊路徑相容連結
-echo   8. 下載全部分類與大型外部研究來源
+echo   8. 下載全部分類、大型研究來源與早期相容來源
 echo.
 echo 正式安裝位置：%INSTALL_ROOT%
 echo 錯誤紀錄：%LOG_FILE%
@@ -75,6 +75,17 @@ echo.
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%" -Full
 set "EXIT_CODE=%ERRORLEVEL%"
+
+if "%EXIT_CODE%"=="0" (
+    if exist "D:\stock\scripts\sources\clone_legacy_compat_repos.cmd" (
+        echo.
+        echo [EXTRA] 下載早期相容來源...
+        set "STOCK_TOOLKIT_NO_PAUSE=1"
+        call "D:\stock\scripts\sources\clone_legacy_compat_repos.cmd"
+        if errorlevel 1 set "EXIT_CODE=1"
+        set "STOCK_TOOLKIT_NO_PAUSE="
+    )
+)
 
 if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>&1
 
