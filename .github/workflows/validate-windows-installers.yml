@@ -82,7 +82,8 @@ jobs:
         run: |
           $example = Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\.env.example" -Raw
           foreach ($name in @('FINMIND_TOKEN', 'ANTHROPIC_API_KEY', 'OPENAI_API_KEY')) {
-            if ($example -notmatch "(?m)^$name=$") {
+            $pattern = '(?m)^' + [Regex]::Escape($name) + '=\r?$'
+            if ($example -notmatch $pattern) {
               throw ".env.example must contain an empty $name placeholder."
             }
           }
