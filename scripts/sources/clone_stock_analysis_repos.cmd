@@ -9,18 +9,20 @@ echo  股票分析 GitHub 來源下載 / 更新工具
 echo ============================================================
 echo.
 echo  所有來源會依分類與來源名稱存入獨立資料夾。
+echo  若偵測到舊版平面資料夾或 github_sources，會優先搬移，不重複下載。
 echo.
 where git >nul 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] 找不到 Git，請先安裝 Git for Windows。
     echo https://git-scm.com/download/win
-    pause
+    if not defined STOCK_TOOLKIT_NO_PAUSE pause
     exit /b 1
 )
 
 set "ROOT_DIR=%~dp0..\.."
 for %%I in ("%ROOT_DIR%") do set "ROOT_DIR=%%~fI"
 set "EXTERNAL_DIR=%ROOT_DIR%\external_repos"
+set "OLD_GITHUB_DIR=%ROOT_DIR%\github_sources"
 
 if not exist "%EXTERNAL_DIR%" mkdir "%EXTERNAL_DIR%"
 
@@ -75,21 +77,38 @@ call :clone_or_pull "05_indicators_factors_portfolio\PyPortfolioOpt" "https://gi
 call :clone_or_pull "05_indicators_factors_portfolio\Riskfolio-Lib" "https://github.com/dcajasn/Riskfolio-Lib.git"
 call :clone_or_pull "05_indicators_factors_portfolio\skfolio" "https://github.com/skfolio/skfolio.git"
 
+if exist "%ROOT_DIR%\scripts\compat\repair_legacy_paths.cmd" (
+    call "%ROOT_DIR%\scripts\compat\repair_legacy_paths.cmd"
+)
+
 echo.
 echo ============================================================
 echo  全部來源處理完成
 echo ============================================================
 echo 位置：%EXTERNAL_DIR%
 echo.
-pause
+if not defined STOCK_TOOLKIT_NO_PAUSE pause
 exit /b 0
 
 :clone_or_pull
 set "RELATIVE_PATH=%~1"
 set "URL=%~2"
 set "TARGET=%EXTERNAL_DIR%\%RELATIVE_PATH%"
+for %%I in ("%RELATIVE_PATH%") do set "SOURCE_NAME=%%~nxI"
+set "OLD_FLAT=%EXTERNAL_DIR%\!SOURCE_NAME!"
+set "OLD_GITHUB=%OLD_GITHUB_DIR%\!SOURCE_NAME!"
 
 for %%I in ("%TARGET%\..") do if not exist "%%~fI" mkdir "%%~fI"
+
+if not exist "%TARGET%" (
+    if exist "!OLD_FLAT!\.git" (
+        echo [MIGRATE] !OLD_FLAT! ^-^> %TARGET%
+        move "!OLD_FLAT!" "%TARGET%" >nul
+    ) else if exist "!OLD_GITHUB!\.git" (
+        echo [MIGRATE] !OLD_GITHUB! ^-^> %TARGET%
+        move "!OLD_GITHUB!" "%TARGET%" >nul
+    )
+)
 
 echo.
 echo ------------------------------------------------------------
@@ -99,14 +118,14 @@ echo ------------------------------------------------------------
 if exist "%TARGET%\.git" (
     pushd "%TARGET%"
     git pull --ff-only
-    if %ERRORLEVEL% NEQ 0 echo [WARN] 更新失敗：%TARGET%
+    if !ERRORLEVEL! NEQ 0 echo [WARN] 更新失敗：%TARGET%
     popd
 ) else (
     if exist "%TARGET%" (
         echo [WARN] 目標存在但不是 Git repository，略過：%TARGET%
     ) else (
         git clone "%URL%" "%TARGET%"
-        if %ERRORLEVEL% NEQ 0 echo [ERROR] 下載失敗：%URL%
+        if !ERRORLEVEL! NEQ 0 echo [ERROR] 下載失敗：%URL%
     )
 )
 exit /b 0
