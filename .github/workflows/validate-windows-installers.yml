@@ -1,0 +1,55 @@
+name: Validate Windows installers
+
+on:
+  push:
+    paths:
+      - 'INSTALL_D_STOCK_ENV.cmd'
+      - 'INSTALL_D_STOCK_ENV_FULL.cmd'
+      - 'scripts/setup/install_d_stock_env.ps1'
+      - '.github/workflows/validate-windows-installers.yml'
+  pull_request:
+    paths:
+      - 'INSTALL_D_STOCK_ENV.cmd'
+      - 'INSTALL_D_STOCK_ENV_FULL.cmd'
+      - 'scripts/setup/install_d_stock_env.ps1'
+      - '.github/workflows/validate-windows-installers.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Parse PowerShell installer core
+        shell: powershell
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\install_d_stock_env.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+
+          if ($errors.Count -gt 0) {
+            $errors | Format-List *
+            exit 1
+          }
+
+          $bytes = [System.IO.File]::ReadAllBytes($path)
+          $nonAscii = @($bytes | Where-Object { $_ -gt 127 })
+          if ($nonAscii.Count -gt 0) {
+            throw 'The PowerShell installer core must remain ASCII-only for Windows PowerShell 5.1 compatibility.'
+          }
+
+      - name: Validate standard CMD launcher
+        shell: cmd
+        run: INSTALL_D_STOCK_ENV.cmd /CHECK
+
+      - name: Validate full CMD launcher
+        shell: cmd
+        run: INSTALL_D_STOCK_ENV_FULL.cmd /CHECK
