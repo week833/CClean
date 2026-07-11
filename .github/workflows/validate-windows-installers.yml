@@ -49,6 +49,7 @@ jobs:
       - name: Run PowerShell installer runtime self-test
         shell: powershell
         run: |
+          $global:LASTEXITCODE = 0
           & "$env:GITHUB_WORKSPACE\scripts\setup\install_d_stock_env.ps1" -SelfTest
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
