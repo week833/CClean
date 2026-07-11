@@ -9,5 +9,15 @@ if not exist "%TARGET%" (
     exit /b 1
 )
 
+set "STOCK_TOOLKIT_NO_PAUSE=1"
 call "%TARGET%" %*
-exit /b %ERRORLEVEL%
+set "RC=%ERRORLEVEL%"
+set "STOCK_TOOLKIT_NO_PAUSE="
+echo.
+if "%RC%"=="0" (
+    echo 全部分類來源下載 / 更新完成。
+) else (
+    echo [ERROR] 來源下載 / 更新發生錯誤，錯誤碼：%RC%
+)
+pause
+exit /b %RC%
