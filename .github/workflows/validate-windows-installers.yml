@@ -14,6 +14,8 @@ on:
       - 'scripts/setup/install_d_stock_env.ps1'
       - 'scripts/setup/create_or_recover_env.ps1'
       - 'scripts/setup/configure_windows_environment.cmd'
+      - 'scripts/sources/clone_stock_analysis_repos.cmd'
+      - 'scripts/sources/clone_legacy_compat_repos.cmd'
       - 'scripts/compat/repair_legacy_paths.cmd'
       - 'scripts/compat/recover_previous_stock_backups.ps1'
       - 'scripts/compat/verify_stock_environment.cmd'
@@ -31,6 +33,8 @@ on:
       - 'scripts/setup/install_d_stock_env.ps1'
       - 'scripts/setup/create_or_recover_env.ps1'
       - 'scripts/setup/configure_windows_environment.cmd'
+      - 'scripts/sources/clone_stock_analysis_repos.cmd'
+      - 'scripts/sources/clone_legacy_compat_repos.cmd'
       - 'scripts/compat/repair_legacy_paths.cmd'
       - 'scripts/compat/recover_previous_stock_backups.ps1'
       - 'scripts/compat/verify_stock_environment.cmd'
@@ -57,12 +61,7 @@ jobs:
           foreach ($path in $paths) {
             $tokens = $null
             $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile(
-              $path,
-              [ref]$tokens,
-              [ref]$errors
-            ) | Out-Null
-
+            [System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errors) | Out-Null
             if ($errors.Count -gt 0) {
               $errors | Format-List *
               exit 1
@@ -91,6 +90,26 @@ jobs:
           $ignore = Get-Content -LiteralPath "$env:GITHUB_WORKSPACE\.gitignore"
           if (-not ($ignore -contains '.env')) {
             throw '.gitignore must ignore .env.'
+          }
+
+      - name: Validate safe source download scripts
+        shell: powershell
+        run: |
+          $scripts = @(
+            (Join-Path $env:GITHUB_WORKSPACE 'scripts\sources\clone_stock_analysis_repos.cmd'),
+            (Join-Path $env:GITHUB_WORKSPACE 'scripts\sources\clone_legacy_compat_repos.cmd')
+          )
+
+          foreach ($path in $scripts) {
+            $text = Get-Content -LiteralPath $path -Raw
+            if ($text -match '(?im)^\s*move\s+') {
+              throw "Source downloader must not move existing folders: $path"
+            }
+            foreach ($required in @('FAILED_COUNT', 'if errorlevel 1', 'exit /b 1', 'git -C')) {
+              if ($text -notmatch [Regex]::Escape($required)) {
+                throw "Missing required failure handling '$required' in $path"
+              }
+            }
           }
 
       - name: Run PowerShell installer runtime and file-preservation self-test
