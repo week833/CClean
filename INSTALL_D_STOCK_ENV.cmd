@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-title D:\stock Installer
+title D:\stock\GitHub Installer
 
 set "LOCAL_PS1=%~dp0scripts\setup\install_d_stock_env.ps1"
 set "ADJACENT_PS1=%~dp0install_d_stock_env.ps1"
@@ -17,7 +17,6 @@ if /I "%~2"=="/FULL" set "FULL_MODE=1"
 where powershell.exe >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] Windows PowerShell was not found.
-    echo.
     pause
     exit /b 1
 )
@@ -36,19 +35,17 @@ if errorlevel 1 (
     if errorlevel 1 (
         echo [ERROR] Administrator elevation failed.
         echo Right-click this file and select Run as administrator.
-        echo.
         pause
     )
     exit /b
 )
 
-echo Downloading the latest installer core...
+echo Downloading the latest safe installer core...
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/week833/stock/main/scripts/setup/install_d_stock_env.ps1' -OutFile '%TEMP_PS1%'"
 if not errorlevel 1 set "PS_SCRIPT=%TEMP_PS1%"
 
 if not defined PS_SCRIPT if exist "%LOCAL_PS1%" set "PS_SCRIPT=%LOCAL_PS1%"
 if not defined PS_SCRIPT if exist "%ADJACENT_PS1%" set "PS_SCRIPT=%ADJACENT_PS1%"
-
 if not defined PS_SCRIPT goto :download_error
 
 call :parse_core
@@ -57,8 +54,9 @@ if errorlevel 1 goto :parse_error
 if "%FULL_MODE%"=="1" set "PS_ARGS=-Full"
 
 echo ============================================================
-echo Starting D:\stock installer
+echo Starting safe installation to D:\stock\GitHub
 echo ============================================================
+echo Existing files directly under D:\stock will not be moved or deleted.
 echo Core script: %PS_SCRIPT%
 echo.
 
@@ -70,8 +68,10 @@ if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
 echo.
 if "%EXIT_CODE%"=="0" (
     echo [OK] Installation completed.
+    echo Install root: D:\stock\GitHub
 ) else (
     echo [ERROR] Installation failed with exit code %EXIT_CODE%.
+    echo No unrelated files should have been moved or deleted.
     echo Log file: %TEMP%\install_d_stock_env.log
 )
 echo.
@@ -94,18 +94,13 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$tokens=$nul
 exit /b %ERRORLEVEL%
 
 :download_error
-echo.
 echo [ERROR] The installer core could not be downloaded or found locally.
 echo Check access to raw.githubusercontent.com.
-echo.
 pause
 exit /b 1
 
 :parse_error
-echo.
 echo [ERROR] The PowerShell installer core failed syntax validation.
-echo Log or parser output is shown above.
 if exist "%TEMP_PS1%" del /q "%TEMP_PS1%" >nul 2>nul
-echo.
 pause
 exit /b 1
