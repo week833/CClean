@@ -46,6 +46,14 @@ jobs:
             throw 'The PowerShell installer core must remain ASCII-only for Windows PowerShell 5.1 compatibility.'
           }
 
+      - name: Run PowerShell installer runtime self-test
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\scripts\setup\install_d_stock_env.ps1" -SelfTest
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
       - name: Validate standard CMD launcher
         shell: cmd
         run: INSTALL_D_STOCK_ENV.cmd /CHECK
