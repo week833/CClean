@@ -2,35 +2,51 @@
 chcp 65001 >nul
 setlocal EnableExtensions EnableDelayedExpansion
 
-title 修復台股工具舊路徑相容性
+title 修復 D:\stock 與舊路徑相容性
 
 set "REPO_ROOT=%~dp0..\.."
 for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
+set "CANONICAL_ROOT=D:\stock"
+set "LEGACY_ROOT=D:\Downloads\stock"
 set "EXTERNAL_ROOT=%REPO_ROOT%\external_repos"
 set "LEGACY_GITHUB=%REPO_ROOT%\github_sources"
 
 echo ============================================================
-echo  修復舊路徑相容性
+echo  修復 D:\stock 與舊路徑相容性
 echo ============================================================
 echo Repository：%REPO_ROOT%
+echo 正式路徑：%CANONICAL_ROOT%
+echo 舊路徑：%LEGACY_ROOT%
 echo.
+
+if not exist "D:\" (
+    echo [ERROR] 找不到 D: 磁碟機。
+    exit /b 1
+)
+
+rem 正式路徑固定為 D:\stock。若 repo 在其他位置，建立 junction。
+if /I not "%REPO_ROOT%"=="%CANONICAL_ROOT%" (
+    if not exist "%CANONICAL_ROOT%" (
+        echo [LINK] %CANONICAL_ROOT% ^-^> %REPO_ROOT%
+        mklink /J "%CANONICAL_ROOT%" "%REPO_ROOT%" >nul 2>&1
+        if !ERRORLEVEL! NEQ 0 echo [WARN] 無法建立正式路徑連結，可能需要系統管理員權限。
+    ) else (
+        echo [KEEP] %CANONICAL_ROOT% 已存在，不進行覆蓋。
+    )
+)
+
+rem 使用者已刪除舊資料夾時，建立舊路徑到 D:\stock 的 junction。
+if not exist "D:\Downloads" mkdir "D:\Downloads" >nul 2>&1
+if not exist "%LEGACY_ROOT%" (
+    echo [LINK] %LEGACY_ROOT% ^-^> %CANONICAL_ROOT%
+    mklink /J "%LEGACY_ROOT%" "%CANONICAL_ROOT%" >nul 2>&1
+    if !ERRORLEVEL! NEQ 0 echo [WARN] 無法建立舊路徑連結，可能需要系統管理員權限。
+) else (
+    echo [KEEP] %LEGACY_ROOT% 已存在，不進行覆蓋。
+)
 
 if not exist "%EXTERNAL_ROOT%" mkdir "%EXTERNAL_ROOT%"
 if not exist "%LEGACY_GITHUB%" mkdir "%LEGACY_GITHUB%"
-
-rem 若 repository 不在舊的固定位置，且舊位置不存在，建立目錄連結。
-if /I not "%REPO_ROOT%"=="D:\Downloads\stock" (
-    if exist "D:\" (
-        if not exist "D:\Downloads" mkdir "D:\Downloads" >nul 2>&1
-        if not exist "D:\Downloads\stock" (
-            echo [LINK] D:\Downloads\stock ^-^> %REPO_ROOT%
-            mklink /J "D:\Downloads\stock" "%REPO_ROOT%" >nul 2>&1
-            if !ERRORLEVEL! NEQ 0 echo [WARN] 無法建立 D:\Downloads\stock 相容連結，可能需要系統管理員權限。
-        ) else (
-            echo [KEEP] D:\Downloads\stock 已存在，不進行覆蓋。
-        )
-    )
-)
 
 echo.
 echo [1/2] 建立 external_repos 舊版平面路徑連結...
@@ -82,6 +98,8 @@ echo.
 echo ============================================================
 echo  相容路徑修復完成
 echo ============================================================
+echo 正式路徑：%CANONICAL_ROOT%
+echo 舊路徑：%LEGACY_ROOT% ^-^> %CANONICAL_ROOT%
 echo 已存在的實體資料夾不會被覆蓋。
 echo 尚未下載的來源會顯示 SKIP，下載完成後可再次執行本工具。
 echo.
