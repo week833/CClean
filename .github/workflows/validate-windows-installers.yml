@@ -5,13 +5,27 @@ on:
     paths:
       - 'INSTALL_D_STOCK_ENV.cmd'
       - 'INSTALL_D_STOCK_ENV_FULL.cmd'
+      - 'RECOVER_MOVED_STOCK_PROGRAMS.cmd'
+      - 'OPEN_STOCK_TERMINAL.cmd'
+      - 'RUN_STOCK_PYTHON.cmd'
       - 'scripts/setup/install_d_stock_env.ps1'
+      - 'scripts/setup/configure_windows_environment.cmd'
+      - 'scripts/compat/repair_legacy_paths.cmd'
+      - 'scripts/compat/recover_previous_stock_backups.ps1'
+      - 'scripts/compat/verify_stock_environment.cmd'
       - '.github/workflows/validate-windows-installers.yml'
   pull_request:
     paths:
       - 'INSTALL_D_STOCK_ENV.cmd'
       - 'INSTALL_D_STOCK_ENV_FULL.cmd'
+      - 'RECOVER_MOVED_STOCK_PROGRAMS.cmd'
+      - 'OPEN_STOCK_TERMINAL.cmd'
+      - 'RUN_STOCK_PYTHON.cmd'
       - 'scripts/setup/install_d_stock_env.ps1'
+      - 'scripts/setup/configure_windows_environment.cmd'
+      - 'scripts/compat/repair_legacy_paths.cmd'
+      - 'scripts/compat/recover_previous_stock_backups.ps1'
+      - 'scripts/compat/verify_stock_environment.cmd'
       - '.github/workflows/validate-windows-installers.yml'
   workflow_dispatch:
 
@@ -23,30 +37,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Parse PowerShell installer core
+      - name: Parse PowerShell scripts and enforce ASCII installer core
         shell: powershell
         run: |
-          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\install_d_stock_env.ps1'
-          $tokens = $null
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile(
-            $path,
-            [ref]$tokens,
-            [ref]$errors
-          ) | Out-Null
+          $paths = @(
+            (Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\install_d_stock_env.ps1'),
+            (Join-Path $env:GITHUB_WORKSPACE 'scripts\compat\recover_previous_stock_backups.ps1')
+          )
 
-          if ($errors.Count -gt 0) {
-            $errors | Format-List *
-            exit 1
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $path,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              $errors | Format-List *
+              exit 1
+            }
           }
 
-          $bytes = [System.IO.File]::ReadAllBytes($path)
+          $installerPath = $paths[0]
+          $bytes = [System.IO.File]::ReadAllBytes($installerPath)
           $nonAscii = @($bytes | Where-Object { $_ -gt 127 })
           if ($nonAscii.Count -gt 0) {
             throw 'The PowerShell installer core must remain ASCII-only for Windows PowerShell 5.1 compatibility.'
           }
 
-      - name: Run PowerShell installer runtime self-test
+      - name: Run PowerShell installer runtime and file-preservation self-test
         shell: powershell
         run: |
           $global:LASTEXITCODE = 0
@@ -62,3 +83,11 @@ jobs:
       - name: Validate full CMD launcher
         shell: cmd
         run: INSTALL_D_STOCK_ENV_FULL.cmd /CHECK
+
+      - name: Validate recovery tool list mode
+        shell: powershell
+        run: |
+          & "$env:GITHUB_WORKSPACE\scripts\compat\recover_previous_stock_backups.ps1" -ListOnly
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
