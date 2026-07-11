@@ -85,7 +85,7 @@ echo ============================================================
 echo 已存在的實體資料夾不會被覆蓋。
 echo 尚未下載的來源會顯示 SKIP，下載完成後可再次執行本工具。
 echo.
-pause
+if not defined STOCK_TOOLKIT_NO_PAUSE pause
 exit /b 0
 
 :ensure_junction
