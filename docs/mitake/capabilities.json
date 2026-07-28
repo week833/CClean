@@ -17,6 +17,7 @@
     "child_windows_opened": 24,
     "click_errors": 0,
     "raw_evidence_local_only": "D:\\stock\\tmp\\mitake_ui_inventory_20260728",
+    "raw_evidence_corrections": "D:\\stock\\tmp\\mitake_ui_inventory_20260728\\inventory_corrections.json",
     "raw_market_data_allowed_in_git": false
   },
   "status_definitions": {

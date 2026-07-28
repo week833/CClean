@@ -7,7 +7,7 @@
 - 點擊目前版面全部 **34 個可見頂端導覽／快捷頁籤**。
 - 成功開啟並讀取 **24 個子視窗**，點擊錯誤 **0**。
 - 未操作帳務、下單、警示、DDE設定或其他會改變帳號／交易狀態的功能。
-- 原始截圖及 OCR 只留在本機 `D:\stock\tmp\mitake_ui_inventory_20260728`，不提交 Git。
+- 原始截圖及 OCR 只留在本機 `D:\stock\tmp\mitake_ui_inventory_20260728`，不提交 Git；三個校正後的快捷頁證據映射記在同目錄 `inventory_corrections.json`。
 - 機器可讀清單見 [capabilities.json](./capabilities.json)。
 
 「全部」只代表本次 1400×900 版面上可見的 34 個頂端項目。被左右箭頭隱藏、需不同帳號／方案、盤中時段或券商登入才出現的子頁，均標為 `snapshot_only`、`schema_ready` 或 `pending`，不冒充已實機驗證。
