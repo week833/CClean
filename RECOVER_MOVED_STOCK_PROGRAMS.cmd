@@ -16,25 +16,17 @@ echo ============================================================
 echo  Recover programs moved by a previous installer
 echo ============================================================
 echo.
-echo This tool copies data from D:\stock_backup_* folders into:
-echo D:\stock\Recovered_from_previous_installer_YYYYMMDD_HHMMSS
-echo.
-echo It does not delete backup folders and does not overwrite existing
-echo programs directly under D:\stock.
+echo This tool only lists legacy D:\stock_backup_* folders.
+echo Creating a second recovery copy is disabled by project policy.
 echo.
 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%RECOVERY_PS1%" -ListOnly
-echo.
-choice /C YN /N /M "Copy the listed backup folders into a safe recovery folder? [Y/N]: "
-if errorlevel 2 exit /b 0
-
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%RECOVERY_PS1%"
 set "RC=%ERRORLEVEL%"
 echo.
 if "%RC%"=="0" (
-    echo [OK] Recovery copy completed.
+    echo [OK] Legacy backup listing completed; no files were copied.
 ) else (
-    echo [ERROR] Recovery failed with exit code %RC%.
+    echo [ERROR] Backup listing failed with exit code %RC%.
 )
 pause
 exit /b %RC%

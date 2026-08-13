@@ -2,12 +2,21 @@
 chcp 65001 >nul
 setlocal EnableExtensions
 
-rem 舊路徑相容啟動器：保留原本根目錄檔名，轉交新的分類路徑。
-set "REPO_ROOT=%~dp0"
-set "TARGET=%REPO_ROOT%scripts\setup\install_tw_stock_ai_env.cmd"
+rem Legacy compatibility launcher; preserve the old filename and delegate.
+set "FIXED_ROOT=D:\stock\GitHub"
+set "HELPER=%FIXED_ROOT%\scripts\setup\assert_fixed_install_root.ps1"
+if not exist "%HELPER%" (
+    echo [ERROR] Fixed-root identity helper was not found: %HELPER%
+    exit /b 2
+)
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%HELPER%"
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" exit /b %RC%
+
+set "TARGET=%FIXED_ROOT%\scripts\setup\install_tw_stock_ai_env.cmd"
 
 if not exist "%TARGET%" (
-    echo [ERROR] 找不到新的環境安裝程式：
+    echo [ERROR] New environment installer was not found:
     echo %TARGET%
     pause
     exit /b 1
@@ -19,9 +28,9 @@ set "RC=%ERRORLEVEL%"
 set "STOCK_TOOLKIT_NO_PAUSE="
 echo.
 if "%RC%"=="0" (
-    echo 環境安裝 / 修復完成。
+    echo Environment installation / repair completed.
 ) else (
-    echo [ERROR] 環境安裝 / 修復失敗，錯誤碼：%RC%
+    echo [ERROR] Environment installation / repair failed, exit code: %RC%
 )
 pause
 exit /b %RC%

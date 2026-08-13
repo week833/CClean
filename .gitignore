@@ -20,8 +20,21 @@ __pycache__/
 install_tw_stock_ai_env.log
 
 # External repositories cloned locally
-external_repos/
+repos/
 github_sources/
+
+# Legacy top-level external clone compatibility junctions
+/andrej-karpathy-skills/
+/audio-tldr-skill/
+/claude-code/
+/claude-code-i18n/
+/claude-code-resources/
+/harness-engineering/
+/skills/
+/stocktw/
+
+# Retained duplicate checkout; keep it outside this repository's tracked scope
+/stock/
 
 # Generated outputs
 reports/

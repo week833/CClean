@@ -1,94 +1,33 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
+set "ERRORLEVEL="
 
-title Legacy stock source downloader
+set "FIXED_ROOT=D:\stock\GitHub"
+set "MANAGER=%FIXED_ROOT%\scripts\sources\source_manager.ps1"
 
-set /a FAILED_COUNT=0
-set /a SUCCESS_COUNT=0
+if "%~1"=="" if "%~2"=="" if "%~3"=="" if "%~4"=="" goto :legacy_update
+if /I "%~1"=="--check" if "%~2"=="" if "%~3"=="" if "%~4"=="" goto :legacy_check
+if /I "%~1"=="--verify" if "%~2"=="" if "%~3"=="" if "%~4"=="" goto :legacy_verify
+goto :bad_args
 
-set "REPO_ROOT=%~dp0..\.."
-for %%I in ("%REPO_ROOT%") do set "REPO_ROOT=%%~fI"
-set "EXTERNAL_ROOT=%REPO_ROOT%\external_repos"
+:legacy_update
+if not exist "%MANAGER%" exit /b 2
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MANAGER%" -Root "%FIXED_ROOT%" -Legacy
+set "RC=%ERRORLEVEL%"
+exit /b %RC%
 
-where git >nul 2>nul
-if errorlevel 1 (
-    echo [ERROR] Git was not found. Install Git for Windows first.
-    if not defined STOCK_TOOLKIT_NO_PAUSE pause
-    exit /b 1
-)
+:legacy_check
+if not exist "%MANAGER%" exit /b 2
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MANAGER%" -Root "%FIXED_ROOT%" -Legacy -Check
+set "RC=%ERRORLEVEL%"
+exit /b %RC%
 
-if not exist "%EXTERNAL_ROOT%" mkdir "%EXTERNAL_ROOT%"
-if errorlevel 1 (
-    echo [ERROR] Could not create external source directory: %EXTERNAL_ROOT%
-    if not defined STOCK_TOOLKIT_NO_PAUSE pause
-    exit /b 1
-)
+:legacy_verify
+if not exist "%MANAGER%" exit /b 2
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%MANAGER%" -Root "%FIXED_ROOT%" -Legacy -Verify
+set "RC=%ERRORLEVEL%"
+exit /b %RC%
 
-echo ============================================================
-echo Legacy compatibility source downloader
-echo ============================================================
-echo Only small compatibility repositories are included.
-echo The oversized voidful/tw_stocker repository is excluded.
-echo All sources are written only under: %EXTERNAL_ROOT%
-echo Existing folders are not moved or deleted.
-echo.
-
-call :clone_or_pull "01_taiwan_stock_data\twstock" "https://github.com/mlouielu/twstock.git"
-call :clone_or_pull "00_legacy_compat\python-stock-radar-" "https://github.com/william911530-cmyk/python-stock-radar-.git"
-call :clone_or_pull "00_legacy_compat\TW-stock" "https://github.com/k66inthesky/TW-stock.git"
-
-if exist "%REPO_ROOT%\scripts\compat\repair_legacy_paths.cmd" (
-    call "%REPO_ROOT%\scripts\compat\repair_legacy_paths.cmd"
-    if errorlevel 1 set /a FAILED_COUNT+=1
-)
-
-echo.
-echo ============================================================
-echo Legacy source processing complete: success !SUCCESS_COUNT!, failed !FAILED_COUNT!
-echo ============================================================
-
-if !FAILED_COUNT! GTR 0 (
-    if not defined STOCK_TOOLKIT_NO_PAUSE pause
-    exit /b 1
-)
-
-if not defined STOCK_TOOLKIT_NO_PAUSE pause
-exit /b 0
-
-:clone_or_pull
-set "RELATIVE_PATH=%~1"
-set "URL=%~2"
-set "TARGET=%EXTERNAL_ROOT%\%RELATIVE_PATH%"
-
-for %%I in ("%TARGET%\..") do if not exist "%%~fI" mkdir "%%~fI"
-if errorlevel 1 (
-    echo [ERROR] Could not create directory: %TARGET%
-    set /a FAILED_COUNT+=1
-    exit /b 0
-)
-
-if exist "%TARGET%\.git" (
-    echo [UPDATE] %RELATIVE_PATH%
-    git -C "%TARGET%" pull --ff-only
-    if errorlevel 1 (
-        echo [ERROR] Update failed: %TARGET%
-        set /a FAILED_COUNT+=1
-    ) else (
-        set /a SUCCESS_COUNT+=1
-    )
-) else (
-    if exist "%TARGET%" (
-        echo [ERROR] Target exists but is not a Git repository. It was not modified: %TARGET%
-        set /a FAILED_COUNT+=1
-    ) else (
-        echo [CLONE] %RELATIVE_PATH%
-        git clone --depth 1 "%URL%" "%TARGET%"
-        if errorlevel 1 (
-            echo [ERROR] Clone failed: %URL%
-            set /a FAILED_COUNT+=1
-        ) else (
-            set /a SUCCESS_COUNT+=1
-        )
-    )
-)
-exit /b 0
+:bad_args
+echo [ERROR] Unknown option. Use no option, --check, or --verify.
+exit /b 2

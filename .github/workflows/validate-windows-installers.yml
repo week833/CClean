@@ -11,14 +11,38 @@ on:
       - '.gitignore'
       - 'OPEN_STOCK_TERMINAL.cmd'
       - 'RUN_STOCK_PYTHON.cmd'
+      - 'STOCK_SETUP_MANAGER.cmd'
+      - 'install_tw_stock_ai_env.cmd'
+      - 'CONFIGURE_WINDOWS_ENV.cmd'
+      - 'DOWNLOAD_STOCK_SOURCES.cmd'
+      - 'DOWNLOAD_LEGACY_SOURCES.cmd'
+      - 'REPAIR_STOCK_PATHS.cmd'
+      - 'VERIFY_STOCK_ENV.cmd'
       - 'scripts/setup/install_d_stock_env.ps1'
       - 'scripts/setup/create_or_recover_env.ps1'
       - 'scripts/setup/configure_windows_environment.cmd'
       - 'scripts/sources/clone_stock_analysis_repos.cmd'
       - 'scripts/sources/clone_legacy_compat_repos.cmd'
+      - 'scripts/sources/source_manager.ps1'
+      - 'scripts/sources/source_manifest_v1.json'
       - 'scripts/compat/repair_legacy_paths.cmd'
       - 'scripts/compat/recover_previous_stock_backups.ps1'
       - 'scripts/compat/verify_stock_environment.cmd'
+      - 'scripts/compat/verify_python_packages.py'
+      - 'scripts/compat/tests/Test-VerifyStockEnvironment.ps1'
+      - 'scripts/compat/tests/Test-RepairLegacyPathsSafety.ps1'
+      - 'scripts/setup/assert_fixed_install_root.ps1'
+      - 'scripts/setup/tests/Test-InstallerPreflight.ps1'
+      - 'scripts/setup/tests/Test-EntrypointRootBinding.ps1'
+      - 'scripts/sources/tests/test_source_manager_fixtures.ps1'
+      - 'tests/installer/Test-InstallerIntegration.ps1'
+      - 'README.md'
+      - 'docs/installer_troubleshooting.md'
+      - 'docs/env_setup.md'
+      - 'docs/external_stock_repositories.md'
+      - 'docs/legacy_compatibility.md'
+      - 'docs/repository_structure.md'
+      - 'docs/windows_installer_package.md'
       - '.github/workflows/validate-windows-installers.yml'
   pull_request:
     paths:
@@ -30,14 +54,38 @@ on:
       - '.gitignore'
       - 'OPEN_STOCK_TERMINAL.cmd'
       - 'RUN_STOCK_PYTHON.cmd'
+      - 'STOCK_SETUP_MANAGER.cmd'
+      - 'install_tw_stock_ai_env.cmd'
+      - 'CONFIGURE_WINDOWS_ENV.cmd'
+      - 'DOWNLOAD_STOCK_SOURCES.cmd'
+      - 'DOWNLOAD_LEGACY_SOURCES.cmd'
+      - 'REPAIR_STOCK_PATHS.cmd'
+      - 'VERIFY_STOCK_ENV.cmd'
       - 'scripts/setup/install_d_stock_env.ps1'
       - 'scripts/setup/create_or_recover_env.ps1'
       - 'scripts/setup/configure_windows_environment.cmd'
       - 'scripts/sources/clone_stock_analysis_repos.cmd'
       - 'scripts/sources/clone_legacy_compat_repos.cmd'
+      - 'scripts/sources/source_manager.ps1'
+      - 'scripts/sources/source_manifest_v1.json'
       - 'scripts/compat/repair_legacy_paths.cmd'
       - 'scripts/compat/recover_previous_stock_backups.ps1'
       - 'scripts/compat/verify_stock_environment.cmd'
+      - 'scripts/compat/verify_python_packages.py'
+      - 'scripts/compat/tests/Test-VerifyStockEnvironment.ps1'
+      - 'scripts/compat/tests/Test-RepairLegacyPathsSafety.ps1'
+      - 'scripts/setup/assert_fixed_install_root.ps1'
+      - 'scripts/setup/tests/Test-InstallerPreflight.ps1'
+      - 'scripts/setup/tests/Test-EntrypointRootBinding.ps1'
+      - 'scripts/sources/tests/test_source_manager_fixtures.ps1'
+      - 'tests/installer/Test-InstallerIntegration.ps1'
+      - 'README.md'
+      - 'docs/installer_troubleshooting.md'
+      - 'docs/env_setup.md'
+      - 'docs/external_stock_repositories.md'
+      - 'docs/legacy_compatibility.md'
+      - 'docs/repository_structure.md'
+      - 'docs/windows_installer_package.md'
       - '.github/workflows/validate-windows-installers.yml'
   workflow_dispatch:
 
@@ -55,6 +103,7 @@ jobs:
           $paths = @(
             (Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\install_d_stock_env.ps1'),
             (Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\create_or_recover_env.ps1'),
+            (Join-Path $env:GITHUB_WORKSPACE 'scripts\setup\assert_fixed_install_root.ps1'),
             (Join-Path $env:GITHUB_WORKSPACE 'scripts\compat\recover_previous_stock_backups.ps1')
           )
 
@@ -105,9 +154,9 @@ jobs:
             if ($text -match '(?im)^\s*move\s+') {
               throw "Source downloader must not move existing folders: $path"
             }
-            foreach ($required in @('FAILED_COUNT', 'if errorlevel 1', 'exit /b 1', 'git -C')) {
+            foreach ($required in @('FIXED_ROOT=D:\stock\GitHub', 'source_manager.ps1')) {
               if ($text -notmatch [Regex]::Escape($required)) {
-                throw "Missing required failure handling '$required' in $path"
+                throw "Source wrapper is missing fixed-root manager binding '$required': $path"
               }
             }
           }
@@ -121,18 +170,52 @@ jobs:
             exit $LASTEXITCODE
           }
 
-      - name: Validate standard CMD launcher
-        shell: cmd
-        run: INSTALL_D_STOCK_ENV.cmd /CHECK
-
-      - name: Validate full CMD launcher
-        shell: cmd
-        run: INSTALL_D_STOCK_ENV_FULL.cmd /CHECK
-
-      - name: Validate recovery tool list mode
+      - name: Run fixture-only installer tests
         shell: powershell
+        env:
+          STOCK_TOOLKIT_NO_PAUSE: '1'
         run: |
-          & "$env:GITHUB_WORKSPACE\scripts\compat\recover_previous_stock_backups.ps1" -ListOnly
+          $plainTests = @(
+            'scripts\setup\tests\Test-InstallerPreflight.ps1',
+            'scripts\setup\tests\Test-EntrypointRootBinding.ps1',
+            'scripts\sources\tests\test_source_manager_fixtures.ps1',
+            'scripts\compat\tests\Test-VerifyStockEnvironment.ps1',
+            'scripts\compat\tests\Test-RepairLegacyPathsSafety.ps1'
+          )
+
+          foreach ($relative in $plainTests) {
+            $path = Join-Path $env:GITHUB_WORKSPACE $relative
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Fixture test is missing: $path"
+            }
+            Write-Host "[TEST] $relative"
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $path
+            $code = $LASTEXITCODE
+            if ($code -ne 0) {
+              throw "$relative failed with exit code $code"
+            }
+          }
+
+          # The repair safety test is a TEMP-fixture test only.  It may exercise
+          # --apply --confirm against its disposable fixture, but must never
+          # apply to D:\stock\GitHub or invoke the production wrapper.
+          $repairTest = Join-Path $env:GITHUB_WORKSPACE 'scripts\compat\tests\Test-RepairLegacyPathsSafety.ps1'
+          $repairText = Get-Content -LiteralPath $repairTest -Raw
+          foreach ($required in @('STOCK_REPAIR_TEST_MODE', 'STOCK_REPAIR_ROOT', 'STOCK_REPAIR_LEGACY_ROOT')) {
+            if ($repairText -notmatch [Regex]::Escape($required)) {
+              throw "Repair safety fixture is missing required isolation marker: $required"
+            }
+          }
+          if ($repairText -match '(?im)D:\\stock\\GitHub|(?im)VERIFY_STOCK_ENV\.cmd|(?im)REPAIR_STOCK_PATHS\.cmd') {
+            throw 'Repair safety fixture must not target the production fixed root or wrapper.'
+          }
+
+          $integration = Join-Path $env:GITHUB_WORKSPACE 'tests\installer\Test-InstallerIntegration.ps1'
+          if (-not (Test-Path -LiteralPath $integration -PathType Leaf)) {
+            throw "Installer integration test is missing: $integration"
+          }
+          Write-Host '[TEST] tests\installer\Test-InstallerIntegration.ps1 -CiMode'
+          & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $integration -CiMode
           if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+            throw "Test-InstallerIntegration.ps1 -CiMode failed with exit code $LASTEXITCODE"
           }

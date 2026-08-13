@@ -1,118 +1,163 @@
 @echo off
-chcp 65001 >nul
 setlocal EnableExtensions
 
-title 台股工具環境安裝與路徑相容管理器
-set "REPO_ROOT=%~dp0"
+title Stock Toolkit Setup Manager
+set "PACKAGE_ROOT=%~dp0"
+set "FIXED_ROOT=D:\stock\GitHub"
+set "HELPER=%FIXED_ROOT%\scripts\setup\assert_fixed_install_root.ps1"
+set "NO_PAUSE=1"
+set "STOCK_TOOLKIT_NO_PAUSE=1"
 
 :menu
 cls
 echo ============================================================
-echo  台股工具環境安裝與路徑相容管理器
+echo Stock Toolkit Setup Manager
+echo Install root: %FIXED_ROOT%
+echo Menu package: %PACKAGE_ROOT%
 echo ============================================================
-echo Repository：%REPO_ROOT%
+echo [1] Preflight / dry-run (read-only)
+echo [2] Complete installation (environment + sources)
+echo [3] Download core research sources
+echo [4] Download all optional research sources
+echo [5] Download legacy sources
+echo [6] Repair legacy paths (explicit operation)
+echo [7] Reconfigure user environment and PATH
+echo [8] Verify installed environment
+echo [9] Open terminal with the managed venv enabled
+echo [Q] Exit
 echo.
-echo [1] 安裝 / 修復核心 Python 環境
-echo [2] 下載 / 更新全部分類來源
-echo [3] 下載舊版相容來源
-echo [4] 修復舊檔名與舊資料夾路徑
-echo [5] 完整執行：環境 + 全部來源 + 相容修復 + 檢查
-echo [6] 只檢查目前環境
-echo [Q] 離開
-echo.
-choice /C 123456Q /N /M "請選擇："
-
-if errorlevel 7 goto :end
-if errorlevel 6 goto :verify
-if errorlevel 5 goto :full
-if errorlevel 4 goto :repair
-if errorlevel 3 goto :legacy
-if errorlevel 2 goto :sources
-if errorlevel 1 goto :install
-
-:install
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-call "%REPO_ROOT%scripts\setup\install_tw_stock_ai_env.cmd"
-set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 執行結果：%RC%
-pause
+choice /C 123456789Q /N /M "Select: "
+if errorlevel 10 goto :end
+if errorlevel 9 goto :terminal
+if errorlevel 8 goto :verify
+if errorlevel 7 goto :configure
+if errorlevel 6 goto :repair
+if errorlevel 5 goto :legacy
+if errorlevel 4 goto :sources_all
+if errorlevel 3 goto :sources
+if errorlevel 2 goto :full
+if errorlevel 1 goto :preflight
 goto :menu
 
-:sources
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-call "%REPO_ROOT%scripts\sources\clone_stock_analysis_repos.cmd"
+:preflight
+if exist "%FIXED_ROOT%" (
+    call :require_fixed_root
+    if errorlevel 1 goto :root_failed
+    call "%FIXED_ROOT%\INSTALL_D_STOCK_ENV.cmd" /PREFLIGHT
+) else (
+    call "%PACKAGE_ROOT%INSTALL_D_STOCK_ENV.cmd" /PREFLIGHT
+)
 set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 執行結果：%RC%
-pause
-goto :menu
-
-:legacy
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-call "%REPO_ROOT%scripts\sources\clone_legacy_compat_repos.cmd"
-set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 執行結果：%RC%
-pause
-goto :menu
-
-:repair
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-call "%REPO_ROOT%scripts\compat\repair_legacy_paths.cmd"
-set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 執行結果：%RC%
-pause
-goto :menu
-
-:verify
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-call "%REPO_ROOT%scripts\compat\verify_stock_environment.cmd"
-set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 執行結果：%RC%
+echo Preflight exit code: %RC%
 pause
 goto :menu
 
 :full
-set "STOCK_TOOLKIT_NO_PAUSE=1"
-echo.
-echo [FULL 1/5] 安裝核心環境...
-call "%REPO_ROOT%scripts\setup\install_tw_stock_ai_env.cmd" || goto :full_error
-
-echo.
-echo [FULL 2/5] 下載全部分類來源...
-call "%REPO_ROOT%scripts\sources\clone_stock_analysis_repos.cmd" || goto :full_error
-
-echo.
-echo [FULL 3/5] 下載舊版相容來源...
-call "%REPO_ROOT%scripts\sources\clone_legacy_compat_repos.cmd" || goto :full_error
-
-echo.
-echo [FULL 4/5] 修復舊路徑...
-call "%REPO_ROOT%scripts\compat\repair_legacy_paths.cmd" || goto :full_error
-
-echo.
-echo [FULL 5/5] 驗證環境...
-call "%REPO_ROOT%scripts\compat\verify_stock_environment.cmd"
+if exist "%FIXED_ROOT%" (
+    call :require_fixed_root
+    if errorlevel 1 goto :root_failed
+    call "%FIXED_ROOT%\INSTALL_D_STOCK_ENV_FULL.cmd"
+) else (
+    call "%PACKAGE_ROOT%INSTALL_D_STOCK_ENV_FULL.cmd"
+)
 set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo 完整流程完成，檢查結果：%RC%
+echo Full installation exit code: %RC%
 pause
 goto :menu
 
-:full_error
+:sources
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\DOWNLOAD_STOCK_SOURCES.cmd"
 set "RC=%ERRORLEVEL%"
-set "STOCK_TOOLKIT_NO_PAUSE="
-echo.
-echo [ERROR] 完整流程中斷，錯誤碼：%RC%
+echo Core source download exit code: %RC%
+pause
+goto :menu
+
+:sources_all
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\DOWNLOAD_STOCK_SOURCES.cmd" --all
+set "RC=%ERRORLEVEL%"
+echo Optional source download exit code: %RC%
+pause
+goto :menu
+
+:legacy
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\DOWNLOAD_LEGACY_SOURCES.cmd"
+set "RC=%ERRORLEVEL%"
+echo Legacy source exit code: %RC%
+pause
+goto :menu
+
+:repair
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\REPAIR_STOCK_PATHS.cmd" --check
+set "RC=%ERRORLEVEL%"
+if errorlevel 1 goto :repair_check_failed
+echo Legacy path check passed; no junctions were created.
+echo Choose Y only if you explicitly want to apply the checked junction changes.
+choice /C YN /N /M "Apply legacy path changes now? [Y/N]: "
+if errorlevel 2 goto :repair_declined
+call "%FIXED_ROOT%\REPAIR_STOCK_PATHS.cmd" --apply --confirm
+set "RC=%ERRORLEVEL%"
+echo Legacy path apply exit code: %RC%
+pause
+goto :menu
+
+:repair_check_failed
+echo [WARN] Legacy path check failed (exit code %RC%); no junctions were created or repaired.
+pause
+goto :menu
+
+:repair_declined
+echo Legacy path apply declined; no junctions were created or changed.
+pause
+goto :menu
+
+:configure
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\CONFIGURE_WINDOWS_ENV.cmd"
+set "RC=%ERRORLEVEL%"
+echo Environment configuration exit code: %RC%
+pause
+goto :menu
+
+:verify
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\VERIFY_STOCK_ENV.cmd"
+set "RC=%ERRORLEVEL%"
+echo Verification exit code: %RC%
+pause
+goto :menu
+
+:terminal
+call :require_fixed_root
+if errorlevel 1 goto :root_failed
+call "%FIXED_ROOT%\OPEN_STOCK_TERMINAL.cmd"
+set "RC=%ERRORLEVEL%"
+echo Terminal launcher exit code: %RC%
+pause
+goto :menu
+
+:require_fixed_root
+if not exist "%HELPER%" (
+    echo [ERROR] Fixed-root identity helper was not found: %HELPER%
+    exit /b 2
+)
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%HELPER%"
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" exit /b %RC%
+exit /b 0
+
+:root_failed
+set "RC=%ERRORLEVEL%"
+echo [ERROR] Fixed-root identity check failed; no local copy was used. Exit code: %RC%
 pause
 goto :menu
 
