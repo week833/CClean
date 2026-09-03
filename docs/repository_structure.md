@@ -14,13 +14,34 @@ stock/
 ├─ VERIFY_STOCK_ENV.cmd
 ├─ external_stock_repositories.md         # 舊文件路徑相容入口
 │
+├─ RUN_CANON_TESTS.cmd                     # 執行 dstock_canon 契約測試
+│
 ├─ docs/
 │  ├─ repository_structure.md
 │  ├─ external_stock_repositories.md
-│  └─ legacy_compatibility.md
+│  ├─ legacy_compatibility.md
+│  ├─ data_source_failover_plan.md         # 雙來源互補契約與修改計劃
+│  ├─ decisions/
+│  │  └─ ADR-0002-backup-source-class.draft.md
+│  ├─ schemas/                             # 兩支程式共用的 JSON schema
+│  │  ├─ canonical_row.schema.json
+│  │  ├─ source_receipt.schema.json
+│  │  └─ central_manifest.schema.json
+│  └─ mitake/
+│     ├─ README.md
+│     └─ capabilities.json
 │
 ├─ scripts/
 │  ├─ clone_stock_analysis_repos.cmd      # 舊 scripts 路徑相容入口
+│  ├─ dstock_canon/                        # 中央與 collect 共用的契約實作（純標準函式庫）
+│  │  ├─ dataset_spec.py                   # join key、欄位白名單、小數位
+│  │  ├─ value_hash.py                     # 共用值雜湊
+│  │  ├─ canonical.py                      # canonical 列建構與 fail-closed 驗證
+│  │  ├─ receipt.py                        # source receipt 產生與驗證
+│  │  ├─ reconcile.py                      # shadow compare 與資格帳本
+│  │  ├─ promotion.py                      # promotion gate 與 central manifest
+│  │  ├─ cli.py                            # python -m dstock_canon
+│  │  └─ tests/
 │  ├─ setup/
 │  │  └─ install_tw_stock_ai_env.cmd
 │  ├─ sources/
@@ -74,3 +95,17 @@ external_stock_repositories.md
 ```text
 STOCK_SETUP_MANAGER.cmd
 ```
+
+## 共用契約套件
+
+`scripts/dstock_canon/` 是中央 `market_update` 與 data collect tool 共用的資料契約實作，只使用標準函式庫，不引入 `requirements.txt` 之外的相依。兩支程式必須匯入同一份實作，而不是各自複製一份：
+
+```text
+set PYTHONPATH=D:\stock\GitHub\scripts
+```
+
+```python
+from dstock_canon import build_row, build_receipt, compare_dataset, decide
+```
+
+契約定義與修改計劃見 [`data_source_failover_plan.md`](data_source_failover_plan.md)；`docs/schemas/` 的 JSON schema 是給其他語言或外部程式讀的同一份契約，由 CI 檢查兩者不分歧。

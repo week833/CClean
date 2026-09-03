@@ -84,14 +84,19 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 兩側必須用同一演算法，否則比對永遠不相等：
 
 ```text
-1. 取 dataset 宣告的業務欄位白名單，其餘欄位不入 hash
-2. 數值欄位轉 Decimal，依該欄位宣告小數位四捨五入，去除尾端零
-3. 缺值統一為空字串，不使用 0、None 或 NaN 的字串形式
+1. 取 dataset 宣告的業務欄位白名單，其餘欄位不入 hash；白名單外的欄位是錯誤，不是忽略
+2. 數值欄位轉 Decimal，依該欄位宣告小數位以 ROUND_HALF_UP 量化，
+   以純小數表示法輸出並去除尾端零；"-0" 折為 "0"
+3. 缺值（None、空字串、NaN）統一為空字串，不使用 0、None 或 NaN 的字串形式
 4. 依欄位名稱字典序組成 "name=value" 並以 \n 連接
 5. UTF-8 編碼後取 sha256 十六進位小寫
 ```
 
-欄位白名單與小數位必須寫在版本化的 `dataset_spec`，改動即升 `schema_version`。
+整數欄位不接受布林值與非整數浮點數，`inf` 一律拒絕。欄位白名單與小數位寫在版本化的
+`dataset_spec`，改動即升 `schema_version`。
+
+實作與測試：[`../scripts/dstock_canon/value_hash.py`](../scripts/dstock_canon/value_hash.py)、
+[`../scripts/dstock_canon/dataset_spec.py`](../scripts/dstock_canon/dataset_spec.py)。
 
 ## 4. Receipt 與降級分級
 
@@ -113,12 +118,23 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 不靠宣稱，靠連續實測。這是 backup 取得資格的唯一途徑：
 
 1. **每天雙跑。** 即使 primary 正常也要跑 backup，兩份 receipt 都留。
-2. **Shadow compare。** 對兩側都有的 `row_key` 比 `value_hash`，算 `match_rate`，寫入 manifest 的 `reconciliation`。
-3. **升級門檻。** 某個 dataset 連續 20 個交易日 `match_rate >= 0.999` 且 `key_only_in_backup = 0`，該 dataset 的 backup 才可從 `reference_only` 升為 `backup`。
-4. **降級門檻。** 任一交易日 `match_rate < 0.99`，該 dataset 立即降回 `reference_only`，需重新累積 20 日。
-5. **逐 dataset 判定。** 資格是每個 dataset 各自累積，不是整支程式一次通過。
+2. **Shadow compare。** 只比兩側都有的非 quarantined `row_key` 的 `value_hash`，算 `match_rate`，寫入 manifest 的 `reconciliation`。
+3. **逐 dataset 判定。** 資格是每個 dataset 各自累積，不是整支程式一次通過。
 
-`match_rate` 門檻依 dataset 分開設定；分點與估算類（例如融資維持率）本來就不會逐列相等，這類 dataset 不進入 backup 資格，維持 `reference_only`。
+每個交易日、每個 dataset 落在四個帶其中之一：
+
+| 帶 | 條件 | 對 streak | 對 source_class |
+|---|---|---|---|
+| `qualifying` | `match_rate >= 0.999` 且 `key_only_in_backup = 0` | +1，滿 20 即升為 `backup` | 可升級 |
+| `warning` | `0.99 <= match_rate < 0.999` | 歸零 | 維持現狀 |
+| `breach` | `match_rate < 0.99`，或 `key_only_in_backup > 0` | 歸零 | 立即降為 `reference_only` |
+| `no_evidence` | 當日無重疊 `row_key` | 不變 | 不變 |
+
+`key_only_in_backup > 0` 直接判 breach 而非 warning：primary 沒有產生過的列是幽靈資料，比數值不一致更嚴重。`no_evidence` 不升不降，因為沒有證據不等於證據為負。
+
+分點與估算類（例如融資維持率）本來就不會逐列相等，這類 dataset 不進入 backup 資格，維持 `reference_only`。
+
+實作與測試：[`../scripts/dstock_canon/reconcile.py`](../scripts/dstock_canon/reconcile.py)。
 
 ## 6. Precedence 與衝突處理
 
@@ -158,20 +174,51 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 
 ## 9. 分階段修改清單
 
-| 階段 | 內容 | 產出 |
+共用實作位於 [`../scripts/dstock_canon/`](../scripts/dstock_canon/)，只用標準函式庫，兩支程式都以
+`import dstock_canon` 取用同一份契約。repository 安裝於 `D:\stock\GitHub`，因此 `D:\stock` 下的程式
+可將 `D:\stock\GitHub\scripts` 加入 `PYTHONPATH` 後直接匯入。
+
+| 階段 | 內容 | 狀態 |
 |---|---|---|
-| P0 | 兩側各加 `--emit-canonical` 唯讀輸出模式，寫到隔離目錄，不動主流程 | 兩份 canonical 檔 |
-| P0 | 建立 `dataset_spec`（欄位白名單、小數位、join key 順序） | 版本化設定 |
-| P1 | 建立 `market_membership` 與 `trading_calendar` 共用維度表產生器 | 兩張 as-of 表 |
-| P1 | 實作 `value_hash` 共用函式，兩側匯入同一份實作，不各寫一份 | 共用模組 |
-| P2 | 兩側輸出 source receipt；實作 schema 驗證器 | receipt + validator |
-| P2 | 實作 shadow compare 與 `reconciliation` 統計，開始累積 20 日資格 | 每日對帳報告 |
-| P3 | 治理修訂 ADR-0002、`SOURCE_REGISTRY.md`、`dstock-boundary.md` | 文件 |
-| P4 | 實作 promotion gate 與 central manifest 擴充（`sources[]` / `effective_source` / `degradation_level`） | manifest v1 |
-| P5 | 接上 failover 觸發、L2 逐列補洞、restatement 回補 | 可運作的互補 |
-| P6 | 驗收演練 | 演練紀錄 |
+| P0 | `dataset_spec`：join key 順序、欄位白名單、小數位 | 已完成 · `dataset_spec.py` |
+| P0 | 兩側各加 `--emit-canonical` 唯讀輸出模式，寫到隔離目錄，不動主流程 | **待本機實作**（呼叫 `build_row`） |
+| P1 | `value_hash` 共用函式，兩側匯入同一份實作 | 已完成 · `value_hash.py` |
+| P1 | canonical 列建構與 fail-closed 驗證 | 已完成 · `canonical.py` |
+| P1 | `market_membership` 與 `trading_calendar` 共用維度表產生器 | **待本機實作**（契約已定義，資料需由本機來源產生） |
+| P2 | source receipt 產生與驗證 | 已完成 · `receipt.py` |
+| P2 | shadow compare 與資格帳本（20 日累積） | 已完成 · `reconcile.py` |
+| P3 | 治理修訂 ADR-0002、`SOURCE_REGISTRY.md`、`dstock-boundary.md` | 草案已備 · [`decisions/ADR-0002-backup-source-class.draft.md`](decisions/ADR-0002-backup-source-class.draft.md) |
+| P4 | promotion gate 與 central manifest 擴充 | 已完成 · `promotion.py` |
+| P5 | 接上 failover 觸發、L2 逐列補洞、restatement 回補 | **待本機實作**（`decide` / `merge_rows` / `plan_restatements` 已可用，排程與觸發需接本機） |
+| P6 | 以實機資料跑驗收演練 | **待本機執行**（合成資料的演練已在測試中通過） |
 
 依賴關係：P1 必須在 P2 之前（沒有共用維度表就無法比對），P3 必須在 P4 之前（沒有 ADR 就不能讓 backup 進 gate）。
+P3 是治理前提：在 ADR-0002 與 `SOURCE_REGISTRY.md` 修訂完成前，`decide()` 應以空的 `eligible_datasets` 呼叫，
+使 backup 永遠無法替補，輸出只落在隔離目錄。
+
+### 9.1 命令列
+
+```bash
+# 驗證 canonical JSON Lines
+python -m dstock_canon validate-rows <rows.jsonl>
+
+# 由 canonical 列產生 receipt
+python -m dstock_canon build-receipt --source-id finmind_collect --source-class backup \
+  --asof 2026-09-03 --generated-at <ISO8601> --rows daily_price=<rows.jsonl> \
+  --expected daily_price=1043 --code-version <ver> --config-hash <hash> -o <receipt.json>
+
+# 每日 shadow compare 並累積資格
+python -m dstock_canon compare --trading-day 2026-09-03 \
+  --primary daily_price=<primary.jsonl> --backup daily_price=<backup.jsonl> --ledger <ledger.json>
+
+# promotion gate 與 central manifest
+python -m dstock_canon promote --required daily_price \
+  --primary-receipt <p.json> --backup-receipt <b.json> --ledger <ledger.json> \
+  --asof 2026-09-03 --generated-at <ISO8601> -o <manifest.json>
+```
+
+機器可讀結果走 stdout，人類訊息走 stderr，因此可直接把 stdout 接進 JSON parser 而不需要合併 stderr。
+`promote` 在 `L3` 時回傳 exit code 3（阻擋，不是錯誤），輸入本身有問題時回傳 2。
 
 ## 10. 驗收演練
 
@@ -183,6 +230,22 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 4. **注入錯誤 backup 資料**（單位錯、缺三天、混入未來列）→ conformance 必須擋下並降級該 dataset，不得通過。
 
 第 4 項是重點：能擋下錯誤資料，才代表這套互補是安全的，而不只是「兩邊都有資料」。
+
+這四個情境已用合成資料寫成測試，見
+[`../scripts/dstock_canon/tests/test_promotion.py`](../scripts/dstock_canon/tests/test_promotion.py)
+的 `AcceptanceDrillTests`。合成資料通過不等於實機通過：P6 仍必須以真實 `shared_market_data` 與真實
+collect 輸出重跑一次，因為合成資料無法呈現實際的單位、市場別與缺日分布。
+
+執行全部契約測試：
+
+```cmd
+RUN_CANON_TESTS.cmd
+```
+
+CI 於 `ubuntu-latest` 與 `windows-latest`、Python 3.10 與 3.12 上執行相同測試，並額外檢查
+`docs/schemas/` 的 JSON schema 與 `scripts/dstock_canon/` 的實作沒有分歧
+（[`check_schema_parity.py`](../scripts/dstock_canon/tests/check_schema_parity.py)）。
+兩份契約表述若不一致，CI 會擋下。
 
 ## 11. 明確不做的事
 

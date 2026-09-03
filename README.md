@@ -101,6 +101,7 @@ D:\stock\GitHub\.venv\Scripts\python.exe
 | `DOWNLOAD_LEGACY_SOURCES.cmd` | 下載早期相容來源 |
 | `REPAIR_STOCK_PATHS.cmd` | 建立安全的舊路徑連結 |
 | `VERIFY_STOCK_ENV.cmd` | 驗證環境、PATH 與套件 |
+| `RUN_CANON_TESTS.cmd` | 執行 `dstock_canon` 雙來源契約測試 |
 
 ## 來源分類
 

@@ -10,21 +10,28 @@
     "dataset",
     "row_key",
     "row_date",
+    "availability_time",
     "availability_basis",
     "source_id",
     "source_class",
     "market",
     "unit_basis",
     "price_basis",
+    "adj_snapshot_id",
     "value_hash",
+    "quality_flags",
     "quarantined",
     "ingested_at",
     "values"
   ],
   "additionalProperties": false,
   "properties": {
-    "schema": { "const": "dstock.market.canonical" },
-    "schema_version": { "const": 1 },
+    "schema": {
+      "const": "dstock.market.canonical"
+    },
+    "schema_version": {
+      "const": 1
+    },
     "dataset": {
       "description": "logical table 名稱，兩個來源必須使用同一個字串。",
       "type": "string",
@@ -53,40 +60,75 @@
     },
     "availability_time": {
       "description": "此列在現實世界可被取得的時間。無證據時為 null，並由 availability_basis 說明推導方式。",
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "format": "date-time"
     },
     "availability_basis": {
       "description": "availability_time 的依據。conservative_lag 表示以保守延遲推得，不是實際公告時間。",
       "type": "string",
-      "enum": ["announced", "created", "vendor_publish", "conservative_lag", "unknown"]
+      "enum": [
+        "announced",
+        "created",
+        "vendor_publish",
+        "conservative_lag",
+        "unknown"
+      ]
     },
     "source_id": {
       "type": "string",
-      "enum": ["market_update", "finmind_collect", "mitake_ui"]
+      "enum": [
+        "market_update",
+        "finmind_collect",
+        "mitake_ui"
+      ]
     },
     "source_class": {
       "type": "string",
-      "enum": ["primary", "backup", "reference_only"]
+      "enum": [
+        "primary",
+        "backup",
+        "reference_only"
+      ]
     },
     "market": {
       "description": "此列 row_date 當下的市場別，必須有 as-of membership 證據；沒有證據為 unknown。",
       "type": "string",
-      "enum": ["twse", "tpex", "emerging", "not_applicable", "unknown"]
+      "enum": [
+        "twse",
+        "tpex",
+        "emerging",
+        "not_applicable",
+        "unknown"
+      ]
     },
     "unit_basis": {
       "description": "values 內成交量欄位的原始單位。canonical 一律另存 shares，unit_basis 保留原始語意。",
       "type": "string",
-      "enum": ["shares", "lots", "not_applicable", "unknown"]
+      "enum": [
+        "shares",
+        "lots",
+        "not_applicable",
+        "unknown"
+      ]
     },
     "price_basis": {
       "description": "raw 與 adjusted 不得混入同一價格序列。",
       "type": "string",
-      "enum": ["raw", "adjusted", "not_applicable"]
+      "enum": [
+        "raw",
+        "adjusted",
+        "not_applicable"
+      ]
     },
     "adj_snapshot_id": {
       "description": "adjusted 價格所屬的凍結 snapshot；重抓不覆蓋既有 snapshot，另存新 id。",
-      "type": ["string", "null"]
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "value_hash": {
       "description": "values 正規化後的 sha256 十六進位值，用於跨來源逐列比對。",
@@ -127,20 +169,84 @@
   },
   "allOf": [
     {
-      "if": { "properties": { "price_basis": { "const": "adjusted" } }, "required": ["price_basis"] },
-      "then": { "properties": { "adj_snapshot_id": { "type": "string", "minLength": 1 } }, "required": ["adj_snapshot_id"] }
+      "if": {
+        "properties": {
+          "price_basis": {
+            "const": "adjusted"
+          }
+        },
+        "required": [
+          "price_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "adj_snapshot_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "adj_snapshot_id"
+        ]
+      }
     },
     {
-      "if": { "properties": { "availability_basis": { "const": "unknown" } }, "required": ["availability_basis"] },
-      "then": { "properties": { "quarantined": { "const": true } } }
+      "if": {
+        "properties": {
+          "availability_basis": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "availability_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quarantined": {
+            "const": true
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "unit_basis": { "const": "unknown" } }, "required": ["unit_basis"] },
-      "then": { "properties": { "quarantined": { "const": true } } }
+      "if": {
+        "properties": {
+          "unit_basis": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "unit_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quarantined": {
+            "const": true
+          }
+        }
+      }
     },
     {
-      "if": { "properties": { "market": { "const": "unknown" } }, "required": ["market"] },
-      "then": { "properties": { "quarantined": { "const": true } } }
+      "if": {
+        "properties": {
+          "market": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "market"
+        ]
+      },
+      "then": {
+        "properties": {
+          "quarantined": {
+            "const": true
+          }
+        }
+      }
     }
   ]
 }
