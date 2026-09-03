@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/week833/stock/docs/schemas/central_manifest.schema.json",
+  "title": "D-stock central manifest with multi-source failover",
+  "description": "latest_manifest.json 的擴充形狀。原有欄位保留，新增 sources / effective_source / degradation_level，使中央資料能記錄由哪一個來源補上。",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "asof",
+    "expected_asof",
+    "generated_at",
+    "status",
+    "publishability",
+    "sources",
+    "effective_source",
+    "degradation_level"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "dstock.market.central_manifest" },
+    "schema_version": { "const": 1 },
+    "asof": { "type": "string", "format": "date" },
+    "expected_asof": { "type": "string", "format": "date" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["complete", "partial", "failed"] },
+    "publishability": { "type": "string", "enum": ["publishable", "degraded", "blocked"] },
+    "sources": {
+      "description": "每個來源當日 receipt 的摘要引用。內容以各來源 receipt 為準，此處不得改寫。",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["source_id", "source_class", "status", "publishability", "receipt_path", "receipt_hash"],
+        "additionalProperties": false,
+        "properties": {
+          "source_id": { "type": "string" },
+          "source_class": { "type": "string", "enum": ["primary", "backup", "reference_only"] },
+          "status": { "type": "string", "enum": ["complete", "partial", "failed"] },
+          "publishability": { "type": "string", "enum": ["publishable", "degraded", "blocked"] },
+          "receipt_path": { "type": "string" },
+          "receipt_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "coverage_to_cutoff": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "effective_source": {
+      "description": "本次 asof 實際採用的來源。L2 混合時為 'mixed'，並由 row 層的 source_id 決定每一列來源。",
+      "type": "string"
+    },
+    "degradation_level": {
+      "description": "L0 primary 完整；L1 backup 全量替補；L2 逐列混合補洞；L3 fail-closed。",
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3"]
+    },
+    "reconciliation": {
+      "description": "primary 與 backup 同時成功時的 shadow compare 結果，是 backup 可信度的憑證。",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "compared_datasets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["dataset", "compared_rows", "match_rows", "match_rate"],
+            "additionalProperties": false,
+            "properties": {
+              "dataset": { "type": "string" },
+              "compared_rows": { "type": "integer", "minimum": 0 },
+              "match_rows": { "type": "integer", "minimum": 0 },
+              "match_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+              "key_only_in_primary": { "type": "integer", "minimum": 0 },
+              "key_only_in_backup": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "conflicts": {
+      "description": "同 row_key 不同 value_hash 且無法依 precedence 解決者。有 conflict 的列一律 quarantine。",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dataset", "row_key", "sources"],
+        "additionalProperties": false,
+        "properties": {
+          "dataset": { "type": "string" },
+          "row_key": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "restatements": {
+      "description": "primary 復原後覆寫 backup 列的稽核紀錄。舊列保留於歷史，不得刪除。",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dataset", "row_key", "from_source", "to_source", "restated_at"],
+        "additionalProperties": false,
+        "properties": {
+          "dataset": { "type": "string" },
+          "row_key": { "type": "string" },
+          "from_source": { "type": "string" },
+          "to_source": { "type": "string" },
+          "restated_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "degradation_level": { "const": "L0" } }, "required": ["degradation_level"] },
+      "then": { "properties": { "publishability": { "const": "publishable" } } }
+    },
+    {
+      "if": {
+        "properties": { "degradation_level": { "enum": ["L1", "L2"] } },
+        "required": ["degradation_level"]
+      },
+      "then": { "properties": { "publishability": { "const": "degraded" } } }
+    },
+    {
+      "if": { "properties": { "degradation_level": { "const": "L3" } }, "required": ["degradation_level"] },
+      "then": { "properties": { "publishability": { "const": "blocked" } } }
+    }
+  ]
+}

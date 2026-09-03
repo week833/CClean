@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/week833/stock/docs/schemas/source_receipt.schema.json",
+  "title": "D-stock source receipt",
+  "description": "每個資料來源每個 asof 各產生一份。central market_update 與 data collect tool 使用完全相同的形狀，promotion gate 才能用同一套規則判定。",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "source_id",
+    "source_class",
+    "asof",
+    "expected_asof",
+    "generated_at",
+    "status",
+    "publishability",
+    "datasets",
+    "pit",
+    "evidence"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "dstock.market.source_receipt" },
+    "schema_version": { "const": 1 },
+    "source_id": { "type": "string", "enum": ["market_update", "finmind_collect", "mitake_ui"] },
+    "source_class": { "type": "string", "enum": ["primary", "backup", "reference_only"] },
+    "asof": { "type": "string", "format": "date" },
+    "expected_asof": {
+      "description": "依交易日曆推得的應有資料日。asof 落後 expected_asof 即為 stale。",
+      "type": "string",
+      "format": "date"
+    },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["complete", "partial", "failed"] },
+    "publishability": { "type": "string", "enum": ["publishable", "degraded", "blocked"] },
+    "datasets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "dataset",
+          "expected_rows",
+          "actual_rows",
+          "missing_rows",
+          "future_row_count",
+          "quarantined_rows",
+          "coverage_to_cutoff",
+          "value_hash",
+          "availability_basis_counts"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "dataset": { "type": "string" },
+          "expected_rows": {
+            "description": "以 trading_calendar 與宣告 universe 推得的分母，不可用實際列數回填。",
+            "type": "integer",
+            "minimum": 0
+          },
+          "actual_rows": { "type": "integer", "minimum": 0 },
+          "missing_rows": { "type": "integer", "minimum": 0 },
+          "future_row_count": {
+            "description": "row_date 晚於 asof 的列數。必須為 0 才可 publishable。",
+            "type": "integer",
+            "minimum": 0
+          },
+          "quarantined_rows": { "type": "integer", "minimum": 0 },
+          "coverage_to_cutoff": {
+            "description": "asof 當日與之前的預期列數對可用列數比值，與 future_row_count 是兩個獨立檢查。",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "value_hash": {
+            "description": "該 dataset 全部非 quarantined 列的 value_hash 依 row_key 排序後彙總的 sha256。",
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "availability_basis_counts": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          },
+          "quality_flag_counts": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "pit": {
+      "type": "object",
+      "required": ["research_cutoff", "future_row_count", "unknown_availability_rows"],
+      "additionalProperties": false,
+      "properties": {
+        "research_cutoff": { "type": "string", "format": "date" },
+        "future_row_count": { "type": "integer", "minimum": 0 },
+        "unknown_availability_rows": { "type": "integer", "minimum": 0 },
+        "conservative_lag_rows": { "type": "integer", "minimum": 0 },
+        "conservative_lag_policy": {
+          "description": "conservative_lag 的推導規則，例如 'month_revenue: row_date + 10 calendar days'。",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["code_version", "config_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "code_version": { "type": "string" },
+        "config_hash": { "type": "string" },
+        "endpoints": {
+          "description": "不含 token 的來源識別。禁止寫入憑證、signed URL 或完整 payload。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "vendor_tier": { "type": "string" },
+        "run_duration_seconds": { "type": "number", "minimum": 0 }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "source_unreachable",
+            "quota_exceeded",
+            "auth_failed",
+            "schema_mismatch",
+            "coverage_below_threshold",
+            "stale_asof",
+            "internal_error"
+          ]
+        },
+        "detail": { "type": "string" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "publishability": { "const": "publishable" } }, "required": ["publishability"] },
+      "then": {
+        "properties": {
+          "status": { "const": "complete" },
+          "pit": {
+            "properties": {
+              "future_row_count": { "const": 0 },
+              "unknown_availability_rows": { "const": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      "then": {
+        "properties": { "publishability": { "const": "blocked" } },
+        "required": ["failure"]
+      }
+    }
+  ]
+}
