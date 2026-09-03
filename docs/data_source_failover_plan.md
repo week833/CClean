@@ -220,6 +220,61 @@ python -m dstock_canon promote --required daily_price \
 機器可讀結果走 stdout，人類訊息走 stderr，因此可直接把 stdout 接進 JSON parser 而不需要合併 stderr。
 `promote` 在 `L3` 時回傳 exit code 3（阻擋，不是錯誤），輸入本身有問題時回傳 2。
 
+### 9.2 `--emit-canonical` 的接法
+
+兩側的輸出模式都只是把既有查詢結果逐列丟給 `build_row`，不改各自的取得邏輯。
+下面是形狀示範，不是可直接複製的實作：每個判斷點都必須由該程式自己的證據決定，
+不可為了讓列通過而填入猜測值。
+
+```python
+import os, sys
+sys.path.insert(0, os.path.join(os.environ["STOCK_HOME"], "scripts"))
+
+from dstock_canon import build_row, write_rows
+
+def to_canonical(source_rows, *, source_id, source_class, asof, ingested_at):
+    for raw in source_rows:
+        stock_id = raw["stock_id"]
+
+        # 三個判斷點都必須有證據，沒有證據就填 unknown，讓契約自己隔離該列。
+        # 不要為了讓列通過而猜測。
+        market = market_membership_as_of(stock_id, raw["date"])       # 無證據 -> "unknown"
+        unit_basis = declared_volume_unit(source_id, market)          # 無證據 -> "unknown"
+        availability_time, basis = availability_evidence(raw)         # 無證據 -> (None, "unknown")
+
+        yield build_row(
+            dataset="daily_price",
+            key_values={"stock_id": stock_id, "date": raw["date"]},
+            values={
+                "open": raw["open"], "high": raw["max"], "low": raw["min"],
+                "close": raw["close"], "change": raw["spread"],
+                "volume_shares": to_shares(raw["Trading_Volume"], unit_basis),
+                "turnover_value": raw["Trading_money"],
+                "transaction_count": raw["Trading_turnover"],
+                "limit_up": None, "limit_down": None,
+            },
+            row_date=raw["date"],
+            source_id=source_id, source_class=source_class,
+            ingested_at=ingested_at,
+            availability_basis=basis, availability_time=availability_time,
+            market=market, unit_basis=unit_basis, price_basis="raw",
+        )
+
+write_rows(out_path, to_canonical(...))
+```
+
+三件事要特別注意：
+
+1. **`to_shares()` 在 `unit_basis` 為 `unknown` 時必須原樣回傳，不可換算。** 契約會把該列隔離；
+   若先猜著換算再交給契約，隔離就失去意義。
+2. **`limit_up` / `limit_down` 沒取到就填 `None`，不要填 0。** 0 在漲跌停欄位是「無漲跌幅限制」的
+   合法值（部分槓桿／反向 ETF、興櫃），與缺值不同；`value_hash` 也把兩者視為不同。
+3. **`price_basis="adjusted"` 一定要帶 `adj_snapshot_id`。** 還原價會被截止日後的事件回溯改寫，
+   沒有凍結 snapshot 就無法產生穩定 hash，兩側也就永遠比不相等。
+
+在 ADR-0002 生效前，這個模式產生的檔案只能寫進隔離目錄，並以空的 `eligible_datasets`
+呼叫 `decide()`。
+
 ## 10. 驗收演練
 
 四個必跑情境，缺一不可：
