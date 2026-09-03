@@ -18,6 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 from dstock_canon import canonical, dataset_spec, promotion, receipt  # noqa: E402
+from dstock_canon.textio import use_utf8_streams  # noqa: E402
 
 SCHEMA_DIR = REPO_ROOT / "docs" / "schemas"
 
@@ -133,6 +134,7 @@ def check_manifest(report: Report) -> None:
 
 
 def main() -> int:
+    use_utf8_streams()
     report = Report()
     check_canonical(report)
     check_receipt(report)

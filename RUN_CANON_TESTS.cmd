@@ -10,6 +10,8 @@ if not exist "%TEST_ROOT%" (
 set "PYTHON=%REPO_ROOT%\.venv\Scripts\python.exe"
 if not exist "%PYTHON%" set "PYTHON=python"
 set "PYTHONDONTWRITEBYTECODE=1"
+rem Test failure messages are Chinese; keep the console from mangling them.
+set "PYTHONUTF8=1"
 set "PYTHONPATH=%REPO_ROOT%\scripts"
 "%PYTHON%" -B -m unittest discover -s "%TEST_ROOT%" -t "%REPO_ROOT%\scripts" -p "test_*.py"
 set "RC=%ERRORLEVEL%"

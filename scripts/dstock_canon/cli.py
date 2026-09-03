@@ -23,6 +23,7 @@ from .dataset_spec import dataset_names
 from .promotion import PromotionError, build_manifest, decide, write_manifest
 from .receipt import ReceiptError, build_receipt, read_receipt, write_receipt
 from .reconcile import EligibilityLedger, compare_dataset
+from .textio import use_utf8_streams
 
 
 def _emit(payload: Any) -> None:
@@ -191,11 +192,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_streams()
     args = build_parser().parse_args(argv)
     try:
         return args.handler(args)
     except (CanonicalError, ReceiptError, PromotionError, ValueError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
+        return 2
+    except OSError as exc:
+        # A missing or unreadable path is an ordinary operator error, not a crash.
+        print(f"[ERROR] 無法讀寫檔案: {exc}", file=sys.stderr)
         return 2
 
 
