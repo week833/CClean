@@ -17,7 +17,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
-from dstock_canon import canonical, dataset_spec, promotion, receipt  # noqa: E402
+from dstock_canon import canonical, dataset_spec, governance, promotion, receipt  # noqa: E402
 from dstock_canon.textio import use_utf8_streams  # noqa: E402
 
 SCHEMA_DIR = REPO_ROOT / "docs" / "schemas"
@@ -133,12 +133,42 @@ def check_manifest(report: Report) -> None:
             )
 
 
+def check_governance(report: Report) -> None:
+    schema = _load("source_governance")
+    props = schema["properties"]
+    report.same_value("source_governance.schema", props["schema"]["const"], governance.SCHEMA_NAME)
+    report.same_value(
+        "source_governance.schema_version", props["schema_version"]["const"], governance.SCHEMA_VERSION
+    )
+    report.same_set("source_governance.properties", props, governance._GOVERNANCE_FIELDS)
+    report.same_set(
+        "source_governance.ratified_classes",
+        props["ratified_classes"]["items"]["enum"],
+        governance.RATIFIABLE_CLASSES,
+    )
+
+    # The two rules that make this a governance record rather than a setting.
+    for never in governance.NEVER_RATIFIABLE:
+        if never in props["ratified_classes"]["items"]["enum"]:
+            report.problems.append(f"source_governance: {never} 不可出現在可批准的 enum 內")
+    if props["ratified_classes"].get("contains", {}).get("const") != "primary":
+        report.problems.append("source_governance: schema 未強制 primary 必須列入 ratified_classes")
+    backup_rule = [
+        rule for rule in schema["allOf"]
+        if rule["if"]["properties"]["ratified_classes"]["contains"]["const"] == "backup"
+        and "ratified_at" in rule["then"].get("required", [])
+    ]
+    if len(backup_rule) != 1:
+        report.problems.append("source_governance: 缺少「批准 backup 必須有 ratified_at」的規則")
+
+
 def main() -> int:
     use_utf8_streams()
     report = Report()
     check_canonical(report)
     check_receipt(report)
     check_manifest(report)
+    check_governance(report)
     if report.problems:
         print("[ERROR] JSON schema 與實作不一致:", file=sys.stderr)
         for problem in report.problems:

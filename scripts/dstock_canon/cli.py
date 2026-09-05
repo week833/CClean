@@ -20,6 +20,7 @@ from typing import Any, Sequence
 
 from .canonical import CanonicalError, read_rows
 from .dataset_spec import dataset_names
+from .governance import GovernanceError, load as load_governance
 from .promotion import PromotionError, build_manifest, decide, write_manifest
 from .receipt import ReceiptError, build_receipt, read_receipt, write_receipt
 from .reconcile import EligibilityLedger, compare_dataset
@@ -121,12 +122,16 @@ def _cmd_promote(args: argparse.Namespace) -> int:
     backup = read_receipt(args.backup_receipt) if args.backup_receipt else None
     ledger = EligibilityLedger.load(args.ledger) if args.ledger else EligibilityLedger()
 
+    governance = load_governance(args.governance)
     result = decide(
         required_datasets=args.required,
         primary_receipt=primary,
         backup_receipt=backup,
         eligible_datasets=ledger.eligible_datasets(),
+        governance=governance,
     )
+    if result["governance_withheld"]:
+        print(f"[WARN] {result['governance_note']}", file=sys.stderr)
     manifest = build_manifest(
         asof=args.asof,
         expected_asof=args.expected_asof or args.asof,
@@ -182,6 +187,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--primary-receipt")
     p.add_argument("--backup-receipt")
     p.add_argument("--ledger")
+    p.add_argument(
+        "--governance",
+        help="治理宣告檔路徑；省略時讀 DSTOCK_GOVERNANCE，再省略則只批准 primary（ADR-0002 前的狀態）。",
+    )
     p.add_argument("--asof", required=True)
     p.add_argument("--expected-asof")
     p.add_argument("--generated-at", required=True)
@@ -196,7 +205,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.handler(args)
-    except (CanonicalError, ReceiptError, PromotionError, ValueError) as exc:
+    except (CanonicalError, ReceiptError, PromotionError, GovernanceError, ValueError) as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
     except OSError as exc:

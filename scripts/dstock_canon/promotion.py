@@ -19,6 +19,7 @@ import json
 from typing import Any, Iterable, Mapping, Sequence
 
 from .dataset_spec import AVAILABILITY_RANK, SOURCE_CLASS_RANK, get_spec
+from .governance import Governance, default_governance
 from .receipt import validate_receipt
 
 SCHEMA_NAME = "dstock.market.central_manifest"
@@ -62,8 +63,16 @@ def decide(
     primary_receipt: Mapping[str, Any] | None,
     backup_receipt: Mapping[str, Any] | None,
     eligible_datasets: Iterable[str],
+    governance: Governance | None = None,
 ) -> dict[str, Any]:
-    """Assign each required dataset to a source and derive the degradation level."""
+    """Assign each required dataset to a source and derive the degradation level.
+
+    ``eligible_datasets`` is what the reconciliation ledger *measured* as good
+    enough to substitute. ``governance`` is whether a decision has *authorised*
+    substitution at all. Both are required; the default governance ratifies only
+    ``primary``, so a caller that has not adopted ADR-0002 cannot accidentally
+    let a backup row through by passing a populated eligible_datasets.
+    """
     required = set()
     for dataset in required_datasets:
         get_spec(dataset)
@@ -80,10 +89,17 @@ def decide(
         if backup_receipt["source_class"] == "primary":
             raise PromotionError("backup_receipt 的 source_class 不可是 primary")
 
-    eligible = set(eligible_datasets)
+    governance = governance or default_governance()
+    measured_eligible = set(eligible_datasets)
+    eligible = measured_eligible if governance.allows("backup") else set()
+
     primary_ok = _usable_datasets(primary_receipt) & required
     if not _pit_clean(primary_receipt):
         primary_ok = set()
+
+    # Report a governance refusal only where it changed the outcome. On a healthy
+    # day the primary covers everything and the unused backup is not news.
+    governance_withheld = sorted((measured_eligible & required) - eligible - primary_ok)
     backup_ok = (_usable_datasets(backup_receipt) & required & eligible)
     if not _pit_clean(backup_receipt):
         backup_ok = set()
@@ -114,7 +130,7 @@ def decide(
     else:
         effective = "none"
 
-    return {
+    result = {
         "degradation_level": level,
         "effective_source": effective,
         "assignment": assignment,
@@ -122,7 +138,13 @@ def decide(
         "primary_covered": sorted(primary_ok),
         "backup_covered": sorted(backup_ok),
         "ineligible_datasets": sorted((required & _usable_datasets(backup_receipt)) - eligible),
+        "governance": governance.describe(),
+        "governance_withheld": governance_withheld,
     }
+    if governance_withheld:
+        # Say why, so an operator reads a governance decision rather than a bug.
+        result["governance_note"] = governance.withheld_reason("backup")
+    return result
 
 
 def _rank_key(row: Mapping[str, Any]) -> tuple[int, int, str]:

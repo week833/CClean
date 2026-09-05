@@ -172,6 +172,39 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 
 未完成第 1、2 項之前，第 9 節的程式修改只能輸出到隔離目錄，不得進入 promotion gate。
 
+### 8.1 這條順序由程式強制，不靠人記得
+
+「ADR 生效前不要讓 backup 替補」如果只是一句約定，遲早會有人忘記。因此它被實作成
+[`governance.py`](../scripts/dstock_canon/governance.py) 的閘門：
+
+- **量測與授權分離。** `reconcile` 的資格帳本量測 backup 是否夠接近 primary；`governance`
+  記錄治理是否**授權**替補。兩者都成立才放行。這代表 20 日的累積**今天就可以開始跑**，
+  不必等 ADR——先有證據，才有值得批准的東西。
+- **預設就是拒絕。** 沒有治理宣告時只批准 `primary`，`decide()` 會扣住每一個 backup dataset，
+  即使帳本已量測合格、即使呼叫端傳入完整的 `eligible_datasets`。忘記不再是可能的結果之一。
+- **拒絕會說明原因。** 決策結果帶 `governance_withheld` 與 `governance_note`，CLI 另印一行
+  `[WARN]`，讓操作者讀到的是治理決策而不是疑似故障。只有在拒絕**實際改變結果**時才回報；
+  primary 正常的日子不會有雜訊。
+- **`reference_only` 永遠不可批准。** 它不是治理選項，宣告檔列入即拒絕載入。
+- **壞掉的宣告會擋下，不會放寬。** 檔案不存在等同「尚未批准」（安全的預設）；檔案存在但格式
+  錯誤則直接報錯，絕不因為讀不懂而放行。
+
+ADR-0002 採用後，落一份治理宣告（格式見
+[`schemas/source_governance.schema.json`](schemas/source_governance.schema.json)）：
+
+```json
+{
+  "schema": "dstock.market.source_governance",
+  "schema_version": 1,
+  "ratified_classes": ["primary", "backup"],
+  "adr": "ADR-0002",
+  "ratified_at": "YYYY-MM-DD"
+}
+```
+
+以 `--governance <路徑>` 或 `DSTOCK_GOVERNANCE` 環境變數指定。批准 `backup` 必須填
+`ratified_at`，作為稽核依據。
+
 ## 9. 分階段修改清單
 
 共用實作位於 [`../scripts/dstock_canon/`](../scripts/dstock_canon/)，只用標準函式庫，兩支程式都以
@@ -187,14 +220,15 @@ schema 已內建三條 fail-closed 規則：`availability_basis`、`unit_basis` 
 | P1 | `market_membership` 與 `trading_calendar` 共用維度表產生器 | **待本機實作**（契約已定義，資料需由本機來源產生） |
 | P2 | source receipt 產生與驗證 | 已完成 · `receipt.py` |
 | P2 | shadow compare 與資格帳本（20 日累積） | 已完成 · `reconcile.py` |
-| P3 | 治理修訂 ADR-0002、`SOURCE_REGISTRY.md`、`dstock-boundary.md` | 草案已備 · [`decisions/ADR-0002-backup-source-class.draft.md`](decisions/ADR-0002-backup-source-class.draft.md) |
+| P3 | 治理閘門（預設拒絕 backup，宣告後才放行） | 已完成 · `governance.py` |
+| P3 | 治理修訂 ADR-0002、`SOURCE_REGISTRY.md`、`dstock-boundary.md` | 草案已備 · [`decisions/ADR-0002-backup-source-class.draft.md`](decisions/ADR-0002-backup-source-class.draft.md)；正式檔在本機 `D:\stock\docs\` |
 | P4 | promotion gate 與 central manifest 擴充 | 已完成 · `promotion.py` |
 | P5 | 接上 failover 觸發、L2 逐列補洞、restatement 回補 | **待本機實作**（`decide` / `merge_rows` / `plan_restatements` 已可用，排程與觸發需接本機） |
 | P6 | 以實機資料跑驗收演練 | **待本機執行**（合成資料的演練已在測試中通過） |
 
 依賴關係：P1 必須在 P2 之前（沒有共用維度表就無法比對），P3 必須在 P4 之前（沒有 ADR 就不能讓 backup 進 gate）。
-P3 是治理前提：在 ADR-0002 與 `SOURCE_REGISTRY.md` 修訂完成前，`decide()` 應以空的 `eligible_datasets` 呼叫，
-使 backup 永遠無法替補，輸出只落在隔離目錄。
+P3 是治理前提，且已由 `governance.py` 強制（見第 8.1 節）：未落治理宣告前，`decide()` 一律扣住
+backup，無論帳本量測結果或呼叫端傳入什麼。因此 P2 的每日雙跑與 20 日累積可以在 ADR 完成前就開始。
 
 ### 9.1 命令列
 
@@ -212,8 +246,10 @@ python -m dstock_canon compare --trading-day 2026-09-03 \
   --primary daily_price=<primary.jsonl> --backup daily_price=<backup.jsonl> --ledger <ledger.json>
 
 # promotion gate 與 central manifest
+# 省略 --governance 時只批准 primary（ADR-0002 前的狀態），backup 一律扣住。
 python -m dstock_canon promote --required daily_price \
   --primary-receipt <p.json> --backup-receipt <b.json> --ledger <ledger.json> \
+  [--governance <governance.json>] \
   --asof 2026-09-03 --generated-at <ISO8601> -o <manifest.json>
 ```
 

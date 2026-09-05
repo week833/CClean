@@ -2,8 +2,12 @@
 
 > **這是草案，不是已生效的治理決策。** D-stock 的正式 ADR 位於 `D:\stock\docs\decisions\`，不在本 repository。
 > 採用前請將本檔調整為與 `ADR-0001-ai-core-four-assets.md` 相同的格式與編號慣例，放入該目錄，
-> 並同步更新 `D:\stock\docs\SOURCE_REGISTRY.md`。在該步驟完成前，本 repository 的
-> `scripts/dstock_canon` 只能以空的 `eligible_datasets` 呼叫，輸出僅落在隔離目錄。
+> 並同步更新 `D:\stock\docs\SOURCE_REGISTRY.md`。
+>
+> 在該步驟完成前不需要任何人為約束：`scripts/dstock_canon/governance.py` 預設只批准
+> `primary`，`decide()` 會扣住每一個 backup dataset。採用本 ADR 後才落治理宣告
+> （`ratified_classes: ["primary", "backup"]`、`adr: "ADR-0002"`、`ratified_at`），
+> 閘門才會放行。
 
 - 狀態：草案
 - 日期：2026-09-03
@@ -76,6 +80,19 @@ collect 側失效時沒有機制記錄「今天沒有第二來源可交叉驗證
   不刪除、不靜默覆蓋。
 - 本 ADR 不改變任何資料的授權範圍。把外部來源資料落地保存為 backup 屬於資料保存行為，
   必須另行核對該來源當期使用條款與原始資料機關授權。
+
+### 5. 決策的落檔與強制
+
+本 ADR 的批准結果必須落成一份治理宣告檔（schema 見
+`stock/docs/schemas/source_governance.schema.json`），由 `promotion.decide()` 讀取：
+
+- 沒有宣告 = 尚未批准 = backup 一律扣住。這是安全的預設，不是錯誤狀態。
+- 宣告中批准 `backup` 必須填 `ratified_at`，作為稽核依據。
+- `reference_only` 不可出現在宣告中；它不是治理選項，列入即拒絕載入。
+- 宣告檔格式錯誤時直接報錯，不因讀不懂而放寬。
+
+資格帳本（量測）與治理宣告（授權）是兩件事，兩者都成立才放行。因此 20 個交易日的
+shadow compare 累積可以在本 ADR 通過前就開始——先有證據，才有值得批准的東西。
 
 ## 後果
 

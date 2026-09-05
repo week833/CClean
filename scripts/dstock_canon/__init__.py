@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .canonical import CanonicalError, build_row, build_row_key, read_rows, validate_row, write_rows
 from .dataset_spec import SCHEMA_VERSION, DATASET_SPECS, SpecError, dataset_names, get_spec
+from .governance import Governance, GovernanceError, default_governance, load as load_governance
 from .promotion import (
     PromotionError,
     build_manifest,
@@ -27,6 +28,8 @@ __all__ = [
     "DATASET_SPECS",
     "CanonicalError",
     "EligibilityLedger",
+    "Governance",
+    "GovernanceError",
     "PromotionError",
     "ReceiptError",
     "ReconcileError",
@@ -41,7 +44,9 @@ __all__ = [
     "dataset_names",
     "decide",
     "failed_receipt",
+    "default_governance",
     "get_spec",
+    "load_governance",
     "merge_rows",
     "plan_restatements",
     "read_receipt",

@@ -12,10 +12,25 @@ from dstock_canon.promotion import (
     plan_restatements,
     validate_manifest,
 )
+from dstock_canon.governance import Governance
 from dstock_canon.receipt import build_receipt, failed_receipt
 from dstock_canon.tests.helpers import price_row, revenue_row
 
 EVIDENCE = {"code_version": "test-1.0.0", "config_hash": "abc123"}
+
+#: Stands in for an adopted ADR-0002. Tests that exercise substitution must
+#: pass it explicitly; the production default ratifies primary only.
+RATIFIED = Governance(
+    ratified_classes=frozenset({"primary", "backup"}),
+    adr="ADR-0002",
+    ratified_at="2026-09-10",
+)
+
+
+def _decide(**kwargs):
+    """decide() under an adopted ADR-0002 unless a test says otherwise."""
+    kwargs.setdefault("governance", RATIFIED)
+    return decide(**kwargs)
 ASOF = "2026-09-03"
 NOW = "2026-09-03T15:05:00+08:00"
 
@@ -52,7 +67,7 @@ class AcceptanceDrillTests(unittest.TestCase):
     """The four drills the plan requires before this is trusted."""
 
     def test_drill_normal_day_is_l0(self):
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"],
             primary_receipt=_primary(), backup_receipt=_backup(),
             eligible_datasets=["daily_price"],
@@ -65,7 +80,7 @@ class AcceptanceDrillTests(unittest.TestCase):
             source_id="market_update", source_class="primary", asof=ASOF, expected_asof=ASOF,
             generated_at=NOW, reason_code="source_unreachable", detail="連線逾時", evidence=EVIDENCE,
         )
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"],
             primary_receipt=failed, backup_receipt=_backup(),
             eligible_datasets=["daily_price"],
@@ -78,7 +93,7 @@ class AcceptanceDrillTests(unittest.TestCase):
             source_id="finmind_collect", source_class="backup", asof=ASOF, expected_asof=ASOF,
             generated_at=NOW, reason_code="quota_exceeded", detail="超過配額", evidence=EVIDENCE,
         )
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"],
             primary_receipt=_primary(), backup_receipt=failed,
             eligible_datasets=["daily_price"],
@@ -86,7 +101,7 @@ class AcceptanceDrillTests(unittest.TestCase):
         self.assertEqual(result["degradation_level"], "L0")
 
     def test_drill_both_down_is_l3_not_an_empty_publication(self):
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"],
             primary_receipt=None, backup_receipt=None, eligible_datasets=[],
         )
@@ -95,7 +110,7 @@ class AcceptanceDrillTests(unittest.TestCase):
 
     def test_drill_bad_backup_data_is_refused(self):
         """An ineligible dataset cannot fill a gap even when it looks complete."""
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"],
             primary_receipt=None, backup_receipt=_backup(), eligible_datasets=[],
         )
@@ -105,7 +120,7 @@ class AcceptanceDrillTests(unittest.TestCase):
 
 class LevelTests(unittest.TestCase):
     def test_partial_primary_plus_eligible_backup_is_l2(self):
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price", "month_revenue"],
             primary_receipt=_primary(datasets=("daily_price",)),
             backup_receipt=_backup(datasets=("daily_price", "month_revenue")),
@@ -117,7 +132,7 @@ class LevelTests(unittest.TestCase):
         self.assertEqual(result["assignment"]["month_revenue"], "finmind_collect")
 
     def test_a_gap_neither_source_covers_is_l3(self):
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price", "month_revenue"],
             primary_receipt=_primary(datasets=("daily_price",)),
             backup_receipt=_backup(datasets=("daily_price",)),
@@ -129,7 +144,7 @@ class LevelTests(unittest.TestCase):
     def test_unclean_pit_removes_the_primary_from_l0(self):
         rows = [price_row("2330"), price_row("2317", availability_basis="unknown", availability_time=None)]
         dirty = _receipt("market_update", "primary", {"daily_price": rows}, {"daily_price": 1})
-        result = decide(
+        result = _decide(
             required_datasets=["daily_price"], primary_receipt=dirty,
             backup_receipt=_backup(), eligible_datasets=["daily_price"],
         )
@@ -137,12 +152,12 @@ class LevelTests(unittest.TestCase):
 
     def test_a_backup_receipt_cannot_be_passed_as_primary(self):
         with self.assertRaises(PromotionError):
-            decide(required_datasets=["daily_price"], primary_receipt=_backup(),
+            _decide(required_datasets=["daily_price"], primary_receipt=_backup(),
                    backup_receipt=None, eligible_datasets=[])
 
     def test_empty_required_set_is_rejected(self):
         with self.assertRaises(PromotionError):
-            decide(required_datasets=[], primary_receipt=_primary(),
+            _decide(required_datasets=[], primary_receipt=_primary(),
                    backup_receipt=None, eligible_datasets=[])
 
 
@@ -205,7 +220,7 @@ class RestatementTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
     def _manifest(self, level_inputs):
-        result = decide(**level_inputs)
+        result = _decide(**level_inputs)
         return build_manifest(
             asof=ASOF, expected_asof=ASOF, generated_at=NOW, decision=result,
             primary_receipt=level_inputs["primary_receipt"],
@@ -242,6 +257,61 @@ class ManifestTests(unittest.TestCase):
                 decision={"degradation_level": "L3", "effective_source": "none"},
                 primary_receipt=None, backup_receipt=None,
             )
+
+
+class GovernanceGateTests(unittest.TestCase):
+    """A measured-good backup still cannot substitute until an ADR authorises it."""
+
+    def _inputs(self):
+        failed = failed_receipt(
+            source_id="market_update", source_class="primary", asof=ASOF, expected_asof=ASOF,
+            generated_at=NOW, reason_code="source_unreachable", detail="連線逾時", evidence=EVIDENCE,
+        )
+        return {
+            "required_datasets": ["daily_price"],
+            "primary_receipt": failed,
+            "backup_receipt": _backup(),
+            "eligible_datasets": ["daily_price"],
+        }
+
+    def test_default_governance_withholds_the_backup(self):
+        result = decide(**self._inputs())
+        self.assertEqual(result["degradation_level"], "L3")
+        self.assertEqual(result["governance_withheld"], ["daily_price"])
+        self.assertEqual(result["governance"]["ratified_classes"], ["primary"])
+
+    def test_the_reason_is_stated_not_silent(self):
+        result = decide(**self._inputs())
+        self.assertIn("backup", result["governance_note"])
+        self.assertIn("ADR-0001", result["governance_note"])
+
+    def test_an_adopted_adr_lets_the_same_inputs_through(self):
+        result = decide(**self._inputs(), governance=RATIFIED)
+        self.assertEqual(result["degradation_level"], "L1")
+        self.assertEqual(result["governance_withheld"], [])
+        self.assertEqual(result["governance"]["adr"], "ADR-0002")
+
+    def test_a_populated_eligible_list_cannot_bypass_the_gate(self):
+        """The pre-ADR safety property no longer depends on the caller."""
+        inputs = self._inputs()
+        inputs["eligible_datasets"] = ["daily_price", "month_revenue", "broker_branch"]
+        self.assertEqual(decide(**inputs)["degradation_level"], "L3")
+
+    def test_primary_is_unaffected_by_the_gate(self):
+        result = decide(
+            required_datasets=["daily_price"], primary_receipt=_primary(),
+            backup_receipt=_backup(), eligible_datasets=["daily_price"],
+        )
+        self.assertEqual(result["degradation_level"], "L0")
+        self.assertEqual(result["governance_withheld"], [])
+
+    def test_manifest_carries_the_blocked_outcome(self):
+        result = decide(**self._inputs())
+        manifest = build_manifest(
+            asof=ASOF, expected_asof=ASOF, generated_at=NOW, decision=result,
+            primary_receipt=self._inputs()["primary_receipt"], backup_receipt=_backup(),
+        )
+        self.assertEqual(manifest["publishability"], "blocked")
 
 
 if __name__ == "__main__":

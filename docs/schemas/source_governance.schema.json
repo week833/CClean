@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/week833/stock/docs/schemas/source_governance.schema.json",
+  "title": "D-stock source governance declaration",
+  "description": "記錄哪些 source_class 已由治理決策批准進入 promotion gate。沒有這份宣告時，只有 primary 被批准——那是 ADR-0002 採用前的狀態。這份檔案不是設定選項，是治理決策的落檔。",
+  "type": "object",
+  "required": ["schema", "schema_version", "ratified_classes", "adr"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "const": "dstock.market.source_governance" },
+    "schema_version": { "const": 1 },
+    "ratified_classes": {
+      "description": "已批准的 source_class。primary 必須列入；reference_only 永遠不可列入，它不是治理選項。",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "enum": ["primary", "backup"] },
+      "contains": { "const": "primary" }
+    },
+    "adr": {
+      "description": "批准依據的 ADR 編號，例如 ADR-0002。",
+      "type": "string",
+      "minLength": 1
+    },
+    "ratified_at": {
+      "description": "批准日期。批准 backup 時為必填，作為稽核依據。",
+      "type": ["string", "null"],
+      "format": "date"
+    },
+    "note": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "ratified_classes": { "contains": { "const": "backup" } } },
+        "required": ["ratified_classes"]
+      },
+      "then": {
+        "properties": { "ratified_at": { "type": "string", "minLength": 1 } },
+        "required": ["ratified_at"]
+      }
+    }
+  ]
+}

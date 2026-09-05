@@ -34,6 +34,13 @@ class CliFlowTests(unittest.TestCase):
             price_row("2330", source_id="finmind_collect", source_class="backup"),
             price_row("2317", close=210, source_id="finmind_collect", source_class="backup"),
         ])
+        self.governance = os.path.join(self.folder, "governance.json")
+        with open(self.governance, "w", encoding="utf-8") as handle:
+            json.dump({
+                "schema": "dstock.market.source_governance", "schema_version": 1,
+                "ratified_classes": ["primary", "backup"],
+                "adr": "ADR-0002", "ratified_at": "2026-09-10",
+            }, handle)
 
     def _build_receipt(self, rows_path, source_id, source_class, output):
         return _run([
@@ -84,11 +91,19 @@ class CliFlowTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["decision"]["degradation_level"], "L0")
 
-        code, out, _ = _run([
+        # Primary gone: without an adopted ADR the measured-good backup is refused.
+        promote_without_primary = [
             "promote", "--required", "daily_price", "--backup-receipt", backup_receipt,
             "--ledger", ledger_path, "--asof", "2026-09-03",
             "--generated-at", "2026-09-03T15:10:00+08:00",
-        ])
+        ]
+        code, out, err = _run(promote_without_primary)
+        self.assertEqual(code, 3)
+        self.assertEqual(json.loads(out)["manifest"]["degradation_level"], "L3")
+        self.assertIn("[WARN]", err)
+
+        # Same inputs, with ADR-0002 declared: the backup may now substitute.
+        code, out, _ = _run(promote_without_primary + ["--governance", self.governance])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["manifest"]["degradation_level"], "L1")
 

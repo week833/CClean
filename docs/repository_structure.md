@@ -26,7 +26,8 @@ stock/
 │  ├─ schemas/                             # 兩支程式共用的 JSON schema
 │  │  ├─ canonical_row.schema.json
 │  │  ├─ source_receipt.schema.json
-│  │  └─ central_manifest.schema.json
+│  │  ├─ central_manifest.schema.json
+│  │  └─ source_governance.schema.json
 │  └─ mitake/
 │     ├─ README.md
 │     └─ capabilities.json
@@ -38,7 +39,8 @@ stock/
 │  │  ├─ value_hash.py                     # 共用值雜湊
 │  │  ├─ canonical.py                      # canonical 列建構與 fail-closed 驗證
 │  │  ├─ receipt.py                        # source receipt 產生與驗證
-│  │  ├─ reconcile.py                      # shadow compare 與資格帳本
+│  │  ├─ reconcile.py                      # shadow compare 與資格帳本（量測）
+│  │  ├─ governance.py                     # 哪些 source_class 已獲治理批准（授權）
 │  │  ├─ promotion.py                      # promotion gate 與 central manifest
 │  │  ├─ cli.py                            # python -m dstock_canon
 │  │  └─ tests/
