@@ -1,0 +1,48 @@
+name: Validate dstock canon contract
+
+on:
+  push:
+    paths:
+      - 'scripts/dstock_canon/**'
+      - 'docs/schemas/**'
+      - 'RUN_CANON_TESTS.cmd'
+      - '.github/workflows/validate-dstock-canon.yml'
+  pull_request:
+    paths:
+      - 'scripts/dstock_canon/**'
+      - 'docs/schemas/**'
+      - 'RUN_CANON_TESTS.cmd'
+      - '.github/workflows/validate-dstock-canon.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.12']
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run contract tests
+        shell: bash
+        env:
+          PYTHONPATH: scripts
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -W error::ResourceWarning -m unittest discover -s scripts/dstock_canon/tests -t scripts -p "test_*.py" -v
+
+      - name: Check the JSON schemas agree with the implementation
+        shell: bash
+        env:
+          PYTHONPATH: scripts
+        run: python scripts/dstock_canon/tests/check_schema_parity.py
